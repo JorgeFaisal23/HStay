@@ -358,8 +358,14 @@ gratuito de Render. Producción sigue en el VPS.
    la URL sea la de la demo.
 
    ```powershell
-   $env:DIRECT_URL = "<External Database URL>"; npm run db:seed; Remove-Item Env:DIRECT_URL
+   $env:DIRECT_URL = "<External Database URL>?sslmode=require"; npm run db:seed; Remove-Item Env:DIRECT_URL
    ```
+
+   Tiene que ser la **External** Database URL: su host termina en
+   `.ohio-postgres.render.com`. La Internal (`@dpg-…-a/apprentas`, sin dominio)
+   solo funciona dentro de Render. Desde fuera, Render exige SSL, de ahí el
+   `?sslmode=require`. Al terminar, el seed imprime la lista de cuentas; si no
+   la ves, no cargó nada.
 
 Limitaciones del plan gratuito:
 
