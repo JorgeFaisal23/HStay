@@ -51,8 +51,13 @@ export function canAccessPath(role: Role, pathname: string) {
   return true;
 }
 
-/** A dónde mandar a cada rol después de iniciar sesión. */
+/**
+ * A dónde mandar a cada rol después de iniciar sesión. El equipo que opera
+ * (OWNER, ADMIN) entra a "Hoy", lo que necesita atención; el rol de consulta
+ * no ve adeudos ni nombres de inquilinos y entra al resumen.
+ */
 export function homePathFor(role: Role) {
   if (role === "SUPERADMIN") return SUPERADMIN_PREFIX;
-  return role === "TENANT" ? "/portal" : "/dashboard";
+  if (role === "TENANT") return "/portal";
+  return role === "VIEWER" ? "/dashboard" : "/hoy";
 }

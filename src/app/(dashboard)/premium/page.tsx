@@ -36,8 +36,8 @@ const FEATURES: { group: string; items: Feature[] }[] = [
   {
     group: "Propiedades y contratos",
     items: [
-      { name: "Propiedades", free: "Hasta 2", premium: "Ilimitadas" },
-      { name: "Unidades", free: "Hasta 20", premium: "Ilimitadas" },
+      { name: "Propiedades", free: `Hasta ${PLAN_LIMITS.FREE.buildings}`, premium: "Ilimitadas" },
+      { name: "Unidades", free: `Hasta ${PLAN_LIMITS.FREE.units}`, premium: "Ilimitadas" },
       { name: "Perfiles de inquilinos y contratos", free: true, premium: true },
       { name: "Contratos con plantilla y firma digital", free: false, premium: true, soon: true },
     ],
@@ -55,7 +55,8 @@ const FEATURES: { group: string; items: Feature[] }[] = [
     items: [
       { name: "Resumen del mes", free: true, premium: true },
       { name: "Reportes de rentabilidad y ocupación", free: false, premium: true },
-      { name: "Exportar a Excel y PDF", free: false, premium: true, soon: true },
+      { name: "Exportar pendientes, cobros y gastos a Excel (CSV)", free: false, premium: true },
+      { name: "Exportar a PDF", free: false, premium: true, soon: true },
     ],
   },
   {
@@ -107,32 +108,34 @@ export default async function PremiumPage() {
         </div>
       ) : null}
 
-      {isPremium ? null : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Tu uso del plan gratuito</CardTitle>
-            <CardDescription>
-              Al llegar al límite no se borra nada: solo no se pueden dar de alta más.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid gap-4 sm:grid-cols-2">
-              {[
-                { label: "Propiedades", used: usage.buildings, limit: PLAN_LIMITS.FREE.buildings },
-                { label: "Unidades", used: usage.units, limit: PLAN_LIMITS.FREE.units },
-              ].map((item) => (
-                <div key={item.label}>
-                  <dt className="text-muted-foreground text-sm">{item.label}</dt>
-                  <dd className="mt-1 text-2xl font-semibold tabular-nums">
-                    {item.used}
-                    <span className="text-muted-foreground text-base font-normal"> de {item.limit}</span>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>{isPremium ? "Tu uso del plan Premium" : "Tu uso del plan gratuito"}</CardTitle>
+          <CardDescription>
+            {isPremium
+              ? "Premium no limita propiedades ni unidades."
+              : "Al llegar al límite no se borra nada: solo no se pueden dar de alta más."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <dl className="grid gap-4 sm:grid-cols-2">
+            {[
+              { label: "Propiedades", used: usage.buildings, limit: PLAN_LIMITS[org.plan].buildings },
+              { label: "Unidades", used: usage.units, limit: PLAN_LIMITS[org.plan].units },
+            ].map((item) => (
+              <div key={item.label}>
+                <dt className="text-muted-foreground text-sm">{item.label}</dt>
+                <dd className="mt-1 text-2xl font-semibold tabular-nums">
+                  {item.used}
+                  <span className="text-muted-foreground text-base font-normal">
+                    {Number.isFinite(item.limit) ? ` de ${item.limit}` : " · sin límite"}
+                  </span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -156,7 +159,7 @@ export default async function PremiumPage() {
           description="Lo necesario para llevar el control de un edificio pequeño."
           active={!isPremium}
           highlights={[
-            "Hasta 2 propiedades y 20 unidades",
+            `Hasta ${PLAN_LIMITS.FREE.buildings} propiedades y ${PLAN_LIMITS.FREE.units} unidades`,
             "Calendario, servicios y cobros completos",
             "Portal para tus inquilinos",
             "Personalización de marca",

@@ -9,13 +9,30 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 
 ## [Sin publicar]
 
+## [0.8.0] - 2026-10-25
+
 ### Añadido
+- **Hoy (`/hoy`)**: nueva pantalla de inicio para dueño y administrativo con lo que necesita atención: rentas vencidas (con "Registrar pago" en la misma fila), cargos del mes por generar (con "Generar cargos"), llegadas, salidas con limpieza por preparar (urgente si entra otro huésped el mismo día), entregas de unidad, contratos por vencer y servicios sin monto. Cada asunto muestra propiedad y unidad, la persona, la fecha y su acción. Los pendientes se derivan de los datos en cada carga (`src/lib/today.ts`): no hay tareas que capturar y, al resolver el dato de origen, el asunto desaparece solo. El rol de consulta no la ve y sigue entrando al resumen.
+- **Primeros pasos** en "Hoy" para una cuenta nueva: propiedad → unidades → inquilino o reserva → cargos del mes, con el siguiente paso a un clic. Desaparece al completarse.
+- **Dinero del mes** en Cobros: avance de cobranza, gastos de servicios y depósitos en garantía de contratos vigentes, cada uno por separado (los depósitos no cuentan como ingreso).
+- **Antes de cerrar el mes** en Cobros: cargos por generar, cargos sin liquidar y servicios sin monto del periodo elegido.
+- **Exportar a CSV** (Premium) desde Reportes: pendientes de hoy y cobros y gastos del mes actual o el anterior (`/reportes/exportar/{pendientes|cobros|gastos}`). UTF-8 con BOM para Excel, con defensa contra inyección de fórmulas; cada descarga queda en la bitácora.
+- **Uso del plan** visible en Propiedades (`PlanUsage`) y en `/premium` también para Premium.
 - **Demo en Render**: `render.yaml` despliega la rama `develop` con el `Dockerfile` del VPS y un PostgreSQL gratuito de Render, con `DEMO_MODE=true`. Pasos y limitaciones (base que caduca a los 30 días, sin SMTP) en el README, sección "Demo en Render".
 
 ### Seguridad
 - La carpeta `Llaves/` queda en `.gitignore` para que las llaves SSH nunca se suban al repositorio.
 
+### Cambiado
+- El producto se llama **HStay**: es el valor por defecto de `APP.name` y de `.env.example`. Las instalaciones que fijan `NEXT_PUBLIC_APP_NAME` (`.env.production`, `render.yaml`) no cambian hasta que se edite la variable.
+- El menú del panel empieza con "Hoy"; "Inicio" pasa a llamarse "Resumen".
+- Los textos de límites en `/premium` salen de `PLAN_LIMITS` en lugar de escribirse a mano.
+- El aviso Premium del resumen ya no promete recordatorios automáticos, firma digital ni usuarios por plan.
+- "Generar cargos" y el aviso de cargos faltantes usan la misma regla (`chargeableLeasesWhere`); antes el botón contaba contratos vigentes menos cargos, que podía no coincidir con lo que se generaba.
+
 ### Corregido
+- **Contratos empalmados por altas simultáneas**: el alta de contrato, el alta de inquilino con contrato y la renovación ahora validan la disponibilidad dentro de la transacción y bajo el mismo candado por unidad que las reservas (`lockUnit`). Antes, un contrato y una reserva (o dos contratos) capturados al mismo tiempo podían ocupar las mismas fechas.
+- `ButtonLink` declara `nativeButton={false}`: pinta un enlace, y Base UI le ponía semántica de botón y lo avisaba en la consola de cada pantalla.
 - **Inicio de sesión por HTTP**: la cookie de sesión ya no es `secure` siempre que la app corre en producción. Ahora sigue el encabezado `X-Forwarded-Proto` del proxy, y la variable `COOKIE_SECURE` (`true`/`false`) la fuerza o la apaga. Antes, al entrar sin HTTPS (por ejemplo, una prueba por `http://IP:3000`), el navegador descartaba la cookie y no se podía iniciar sesión. Se trajo de `main` (`aeb7ab8`).
 
 ## [0.7.0] - 2026-10-04

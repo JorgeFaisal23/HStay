@@ -1,5 +1,6 @@
 import type { OrgDb } from "@/lib/db/scoped";
 import { toNumber } from "@/lib/format";
+import { chargeableLeasesWhere } from "@/lib/payments";
 
 /** Cobros de renta de un periodo, agrupados por propiedad. */
 export async function getPaymentsBoard(db: OrgDb, period: string) {
@@ -37,6 +38,18 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
       },
     }),
     db.lease.count({ where: { status: "ACTIVE" } }),
+  ]);
+
+  // Lo demás del dinero del mes y lo que falta para cerrarlo.
+  const [missingCharges, serviceCharges, deposits, servicesMissing] = await Promise.all([
+    db.lease.count({ where: chargeableLeasesWhere(period) }),
+    db.serviceCharge.aggregate({ where: { period }, _sum: { amount: true } }),
+    db.lease.aggregate({
+      where: { status: "ACTIVE", depositAmount: { gt: 0 } },
+      _sum: { depositAmount: true },
+      _count: true,
+    }),
+    db.serviceAccount.count({ where: { active: true, charges: { none: { period } } } }),
   ]);
 
   const groups = new Map<
@@ -109,7 +122,19 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
     overdueCount: overdue.length,
     chargeCount: charges.length,
     activeLeases,
-    /** Cuántos contratos vigentes aún no tienen cargo generado este mes. */
-    missingCharges: Math.max(0, activeLeases - charges.length),
+    /** Contratos que deberían tener cargo este mes y no lo tienen (los que crea "Generar cargos"). */
+    missingCharges,
+    /** Cargos del mes sin liquidar. */
+    openCharges: charges.filter((c) => c.status !== "PAID").length,
+    /** Gasto en servicios capturado del mes. */
+    servicesExpense: toNumber(serviceCharges._sum.amount ?? 0),
+    /** Cuentas de servicio activas sin monto del mes. */
+    servicesMissing,
+    /**
+     * Depósitos en garantía pactados en los contratos vigentes. Es dinero del
+     * inquilino que se resguarda, no ingreso; la recepción y la devolución
+     * todavía no se registran.
+     */
+    deposits: { total: toNumber(deposits._sum.depositAmount ?? 0), leases: deposits._count },
   };
 }

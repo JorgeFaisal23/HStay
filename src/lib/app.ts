@@ -6,10 +6,11 @@
  * color) y cambia por cliente; esta es la misma para todos y ningún formulario
  * la edita.
  *
- * El nombre definitivo del producto aún no está decidido, así que todo sale de
- * variables de entorno con un placeholder neutro. Para renombrarlo basta con
- * definir NEXT_PUBLIC_APP_NAME (y, si se quiere, las demás) y volver a
- * compilar: las variables NEXT_PUBLIC_ se incrustan en el build.
+ * El producto se llama HStay. Aun así todo sale de variables de entorno con
+ * ese valor por defecto: para renombrarlo basta con definir
+ * NEXT_PUBLIC_APP_NAME (y, si se quiere, las demás) y volver a compilar, porque
+ * las variables NEXT_PUBLIC_ se incrustan en el build. El logo y el color
+ * definitivos del producto siguen pendientes.
  *
  * Regla de uso: lo que el inquilino ve como "quién le cobra" es la marca de la
  * arrendadora; lo que identifica "con qué software se lo cobran" es el
@@ -27,12 +28,12 @@ function env(value: string | undefined, fallback: string) {
 const color = env(process.env.NEXT_PUBLIC_APP_COLOR, "#12263F");
 
 export const APP = {
-  name: env(process.env.NEXT_PUBLIC_APP_NAME, "AppRentas"),
+  name: env(process.env.NEXT_PUBLIC_APP_NAME, "HStay"),
   tagline: env(process.env.NEXT_PUBLIC_APP_TAGLINE, "Administración de rentas"),
   description:
     "Plataforma para administrar arrendamientos, servicios, cobros y reservas de corta estancia.",
   /** Se mantiene a mano junto a la versión de package.json. */
-  version: "0.1.0",
+  version: "0.8.0",
   /** Sitio público del producto. Vacío mientras no exista. */
   url: env(process.env.NEXT_PUBLIC_APP_URL, ""),
   /**
@@ -46,5 +47,5 @@ export const APP = {
 /** Inicial que usa el distintivo cuando no hay logo propio del producto. */
 export const APP_INITIAL = APP.name.charAt(0).toUpperCase();
 
-/** Texto corto para pies de página y menús: "AppRentas 0.1.0". */
+/** Texto corto para pies de página y menús: "HStay 0.8.0". */
 export const APP_VERSION_LABEL = `${APP.name} ${APP.version}`;

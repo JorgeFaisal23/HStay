@@ -1,9 +1,11 @@
-# AppRentas (nombre provisional)
+# HStay
 
-> El nombre definitivo del producto aún no existe. En el código se usa el
-> placeholder configurable `APP.name` (variable `NEXT_PUBLIC_APP_NAME`, por
-> defecto `AppRentas`). **CARCAR es un cliente** (una arrendadora), no el
-> producto; el repositorio conserva ese nombre por historia.
+> El producto se llama **HStay**. En el código se usa `APP.name` (variable
+> `NEXT_PUBLIC_APP_NAME`, por defecto `HStay`). **CARCAR es un cliente** (una
+> arrendadora), no el producto; el repositorio conserva ese nombre por
+> historia. Las instalaciones que ya fijan `NEXT_PUBLIC_APP_NAME=AppRentas`
+> (`.env.production`, `render.yaml`) siguen mostrando ese nombre hasta que se
+> cambie la variable y se vuelva a compilar.
 
 Plataforma de gestión de rentas: edificios con múltiples
 unidades, control de servicios, cobros de renta, calendario unificado con
@@ -196,7 +198,7 @@ Variables de entorno (ver `.env.example`):
 | `DATABASE_URL` | Conexión que usa la app en ejecución |
 | `DIRECT_URL` | Conexión que Prisma usa para migrar (igual a `DATABASE_URL` salvo que haya un pooler) |
 | `AUTH_SECRET` | Clave con la que se firman las sesiones |
-| `NEXT_PUBLIC_APP_NAME` | Nombre del producto (placeholder `AppRentas`). También `NEXT_PUBLIC_APP_TAGLINE`, `NEXT_PUBLIC_APP_COLOR` y `NEXT_PUBLIC_APP_URL`. Se incrustan al compilar |
+| `NEXT_PUBLIC_APP_NAME` | Nombre del producto (por defecto `HStay`). También `NEXT_PUBLIC_APP_TAGLINE`, `NEXT_PUBLIC_APP_COLOR` y `NEXT_PUBLIC_APP_URL`. Se incrustan al compilar |
 | `COOKIE_SECURE` | Cookie de sesión `secure`. Vacío: la decide `X-Forwarded-Proto` del proxy; `true` la fuerza; `false` la apaga |
 | `DEMO_MODE` | `true` muestra las cuentas de prueba en el acceso. Nunca en producción |
 | `SHADOW_DATABASE_URL` | Solo desarrollo: base auxiliar de `migrate dev` |

@@ -26,7 +26,7 @@ import {
 } from "@/lib/format";
 import { CHARGE_STATUS_LABELS, CHARGE_STATUS_TONES } from "@/lib/labels";
 import { PaymentsToolbar } from "./payments-toolbar";
-import { PaymentRowActions } from "./payment-row-actions";
+import { PaymentRowActions } from "@/components/payments/payment-row-actions";
 import { ReceiptBadge } from "@/components/payments/receipt-viewer";
 
 export const metadata: Metadata = { title: "Cobros" };
@@ -100,18 +100,61 @@ export default async function PaymentsPage({
         />
       </div>
 
-      <Card>
-        <CardContent className="space-y-2">
-          <div className="flex items-baseline justify-between text-sm">
-            <span className="font-medium">Avance de cobranza</span>
-            <span className="text-muted-foreground tabular-nums">
-              <Amount value={board.collected} className="text-foreground" /> de{" "}
-              <Amount value={board.expected} className="font-normal" />
-            </span>
-          </div>
-          <Progress value={progress} />
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Dinero de {periodLabel(period).toLowerCase()}</CardTitle>
+            <CardDescription>
+              Cada cifra va por separado: lo cobrado no incluye depósitos ni descuenta gastos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between text-sm">
+                <span className="font-medium">Avance de cobranza</span>
+                <span className="text-muted-foreground tabular-nums">
+                  <Amount value={board.collected} className="text-foreground" /> de{" "}
+                  <Amount value={board.expected} className="font-normal" />
+                </span>
+              </div>
+              <Progress value={progress} />
+            </div>
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border p-3">
+                <dt className="text-muted-foreground text-xs">Gastos de servicios</dt>
+                <dd className="mt-1 text-lg">
+                  <Amount value={board.servicesExpense} />
+                </dd>
+                <dd className="text-muted-foreground text-xs text-pretty">
+                  Recibos capturados del mes.{" "}
+                  <Link href={`/servicios?mes=${period}`} className="underline">
+                    Ver servicios
+                  </Link>
+                </dd>
+              </div>
+              <div className="rounded-lg border p-3">
+                <dt className="text-muted-foreground text-xs">Depósitos en garantía</dt>
+                <dd className="mt-1 text-lg">
+                  <Amount value={board.deposits.total} />
+                </dd>
+                <dd className="text-muted-foreground text-xs text-pretty">
+                  {board.deposits.leases === 0
+                    ? "Ningún contrato vigente tiene depósito."
+                    : `Pactados en ${board.deposits.leases === 1 ? "1 contrato vigente" : `${board.deposits.leases} contratos vigentes`}. Son del inquilino: no cuentan como ingreso.`}
+                </dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+
+        <MonthCloseCard
+          period={period}
+          missingCharges={board.missingCharges}
+          openCharges={board.openCharges}
+          overdueCount={board.overdueCount}
+          servicesMissing={board.servicesMissing}
+        />
+      </div>
 
       {board.chargeCount === 0 ? (
         <EmptyState
@@ -214,5 +257,89 @@ export default async function PaymentsPage({
         ))
       )}
     </>
+  );
+}
+
+/**
+ * Antes de cerrar un mes: lo que falta revisar del periodo. Todo sale de los
+ * datos; no hay un "cierre" que guardar, solo una lista para no olvidar nada.
+ */
+function MonthCloseCard({
+  period,
+  missingCharges,
+  openCharges,
+  overdueCount,
+  servicesMissing,
+}: {
+  period: string;
+  missingCharges: number;
+  openCharges: number;
+  overdueCount: number;
+  servicesMissing: number;
+}) {
+  const checks = [
+    {
+      id: "charges",
+      done: missingCharges === 0,
+      label:
+        missingCharges === 0
+          ? "Todos los contratos tienen su cargo"
+          : missingCharges === 1
+            ? "Falta generar 1 cargo de renta"
+            : `Faltan generar ${missingCharges} cargos de renta`,
+    },
+    {
+      id: "collections",
+      done: openCharges === 0,
+      label:
+        openCharges === 0
+          ? "No quedan cargos sin liquidar"
+          : `${openCharges === 1 ? "1 cargo sin liquidar" : `${openCharges} cargos sin liquidar`}${
+              overdueCount > 0 ? `, ${overdueCount === 1 ? "1 vencido" : `${overdueCount} vencidos`}` : ""
+            }`,
+    },
+    {
+      id: "services",
+      done: servicesMissing === 0,
+      label:
+        servicesMissing === 0
+          ? "Todos los servicios tienen monto"
+          : servicesMissing === 1
+            ? "1 servicio sin monto"
+            : `${servicesMissing} servicios sin monto`,
+      href: servicesMissing > 0 ? `/servicios?mes=${period}` : undefined,
+    },
+  ];
+  const pending = checks.filter((check) => !check.done).length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Antes de cerrar el mes</CardTitle>
+        <CardDescription>
+          {pending === 0
+            ? `${periodLabel(period)} está completo: no falta nada por revisar.`
+            : `Lo que falta revisar de ${periodLabel(period).toLowerCase()}.`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-2">
+          {checks.map((check) => (
+            <li key={check.id} className="flex items-start justify-between gap-3 text-sm">
+              {check.href ? (
+                <Link href={check.href} className="text-primary min-w-0 text-pretty underline-offset-4 hover:underline">
+                  {check.label}
+                </Link>
+              ) : (
+                <span className="min-w-0 text-pretty">{check.label}</span>
+              )}
+              <StatusBadge tone={check.done ? "success" : "warning"} className="shrink-0">
+                {check.done ? "Listo" : "Pendiente"}
+              </StatusBadge>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }

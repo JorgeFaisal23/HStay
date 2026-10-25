@@ -94,8 +94,8 @@ export async function createOrgFixture(label: string) {
       organizationId,
       unitId: freeUnit.id,
       guestName: "Huésped",
-      checkIn: new Date("2026-10-10"),
-      checkOut: new Date("2026-10-12"),
+      checkIn: new Date("2030-10-10"),
+      checkOut: new Date("2030-10-12"),
       totalAmount: 2000,
     },
   });

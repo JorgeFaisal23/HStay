@@ -29,7 +29,7 @@ import { canEdit } from "@/lib/permissions";
 import { deadlineLabel, moneyCompact, money, periodLabel, shortDate } from "@/lib/format";
 import { BOOKING_SOURCE_LABELS } from "@/lib/labels";
 
-export const metadata: Metadata = { title: "Inicio" };
+export const metadata: Metadata = { title: "Resumen" };
 
 export default async function DashboardPage() {
   const { session, db } = await requireOrgUser(["OWNER", "ADMIN", "VIEWER"]);
@@ -236,9 +236,9 @@ export default async function DashboardPage() {
               </div>
               <CardTitle className="mt-2">Saca más de tus datos</CardTitle>
               <CardDescription className="text-pretty">
-                Con Premium obtienes reportes de rentabilidad, recordatorios
-                automáticos de pago, contratos con firma digital y usuarios
-                administrativos con permisos.
+                Con Premium registras propiedades y unidades sin límite y
+                abres los reportes de rentabilidad y ocupación de cada
+                propiedad.
               </CardDescription>
             </CardHeader>
             <CardContent>

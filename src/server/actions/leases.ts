@@ -11,6 +11,7 @@ import { logAction } from "@/server/actions/audit";
 import type { ActionResult } from "@/lib/action-result";
 import {
   leaseData,
+  lockUnit,
   parseDateInput,
   readLeaseTerms,
   unitAvailabilityError,
@@ -34,6 +35,7 @@ function refresh(tenantId: string, unitId: string) {
   revalidatePath("/pagos");
   revalidatePath("/calendario");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
 }
 
 /** La unidad vuelve a estar disponible (salvo que esté en mantenimiento). */
@@ -82,19 +84,19 @@ export async function createLease(_prev: ActionResult, formData: FormData): Prom
 
   const start = parseDateInput(parsed.data.startDate);
   const end = parseDateInput(parsed.data.endDate);
-  const unavailable = await unitAvailabilityError(db, unitId, start, end);
-  if (unavailable) return { error: unavailable };
 
-  const lease = await db.$transaction(async (tx) => {
-    // Se vuelve a comprobar dentro de la transacción: dos altas simultáneas
-    // sobre la misma unidad no deben pasar las dos.
-    const busy = await tx.lease.findFirst({ where: { unitId, status: "ACTIVE" }, select: { id: true } });
-    if (busy) return null;
+  // Se valida bajo el candado de la unidad: dos altas simultáneas (contrato o
+  // reserva) sobre la misma unidad no deben pasar las dos.
+  const result = await db.$transaction(async (tx) => {
+    await lockUnit(tx, unitId);
+    const unavailable = await unitAvailabilityError(tx, unitId, start, end);
+    if (unavailable) return { error: unavailable };
     const created = await tx.lease.create({ data: leaseData(orgId, unitId, tenantId, parsed.data) });
     await tx.unit.update({ where: { id: unitId }, data: { status: "OCCUPIED" } });
-    return created;
+    return { lease: created };
   });
-  if (!lease) return { error: "Esa unidad ya tiene un contrato vigente." };
+  if ("error" in result) return { error: result.error };
+  const { lease } = result;
 
   await logAction(db, session.sub, "Alta de contrato", "Lease", lease.id, tenant.name);
   refresh(tenantId, unitId);
@@ -199,21 +201,26 @@ export async function renewLease(leaseId: string, formData: FormData): Promise<A
     return { error: "El nuevo vencimiento debe ser posterior al actual." };
   }
 
-  // Que la extensión no se cruce con reservas de corta estancia ya tomadas.
-  const booking = await db.booking.findFirst({
-    where: { unitId: lease.unitId, status: "CONFIRMED", checkIn: { lt: endDate }, checkOut: { gt: lease.endDate } },
-    select: { id: true },
+  // Que la extensión no se cruce con reservas de corta estancia ya tomadas,
+  // bajo el mismo candado que el alta de reservas.
+  const renewed = await db.$transaction(async (tx) => {
+    await lockUnit(tx, lease.unitId);
+    const booking = await tx.booking.findFirst({
+      where: { unitId: lease.unitId, status: "CONFIRMED", checkIn: { lt: endDate }, checkOut: { gt: lease.endDate } },
+      select: { id: true },
+    });
+    if (booking) return false;
+    await tx.lease.update({
+      where: { id: lease.id },
+      data: {
+        endDate,
+        endReason: null,
+        ...(parsed.data.rentAmount !== undefined ? { rentAmount: parsed.data.rentAmount } : {}),
+      },
+    });
+    return true;
   });
-  if (booking) return { error: "Hay reservas de corta estancia en el periodo de la renovación." };
-
-  await db.lease.update({
-    where: { id: lease.id },
-    data: {
-      endDate,
-      endReason: null,
-      ...(parsed.data.rentAmount !== undefined ? { rentAmount: parsed.data.rentAmount } : {}),
-    },
-  });
+  if (!renewed) return { error: "Hay reservas de corta estancia en el periodo de la renovación." };
 
   await logAction(
     db,

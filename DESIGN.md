@@ -29,7 +29,7 @@ Al final hay una [lista de revisión](#15-lista-de-revisión) para PRs y agentes
 | **Producto** (`APP.name`, configurable) | El software | [`src/lib/app.ts`](src/lib/app.ts) (`NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_APP_COLOR`, por defecto `#12263F`) | Solo en los márgenes: pie del menú, pie del portal, acceso, planes, favicon y metadatos |
 
 - La marca del arrendador llega como variables CSS inyectadas en el render de servidor (`brandStyleSheet()`). Por eso **ningún componente conoce el color de marca**: usa `primary`, `brand-soft` y `brand-strong`.
-- El producto usa su propio color para que no cambie con cada cliente. Su distintivo es [`AppMark`](src/components/shared/app-mark.tsx) (la inicial de `APP.name`). El nombre definitivo aún no existe: se usa el placeholder configurable `APP.name`. CARCAR es un cliente (una arrendadora), no el producto.
+- El producto usa su propio color para que no cambie con cada cliente. Su distintivo es [`AppMark`](src/components/shared/app-mark.tsx) (la inicial de `APP.name`). El producto se llama **HStay** (valor por defecto de `APP.name`, configurable con `NEXT_PUBLIC_APP_NAME`); en el código siempre se usa `APP.name`, nunca el nombre escrito a mano. El logo y el color definitivos del producto están pendientes: mientras tanto se conservan la inicial y `#12263F`. CARCAR es un cliente (una arrendadora), no el producto.
 
 ---
 
@@ -239,6 +239,8 @@ Antes de crear algo, revisa esta tabla. Los primitivos de `src/components/ui/` s
 | Mostrar un error de servidor en un formulario | `FormError` (usa `Callout`) | Texto rojo suelto |
 | Listar datos tabulares | `Table` de [`ui/table.tsx`](src/components/ui/table.tsx), con `min-w-*` para el scroll horizontal | `<table>` a mano |
 | Listar elementos navegables | `ul.divide-y` con filas `rounded-lg hover:bg-accent/60 transition-colors` | Tablas para listas de tarjetas |
+| Mostrar un pendiente que se resuelve ahí mismo | Fila de `ul.divide-y` como en [`/hoy`](src/app/(dashboard)/hoy/page.tsx): `StatusBadge` + título; propiedad · persona en `text-xs text-muted-foreground`; fecha relativa (`deadlineLabel` o `relativeDay`); botón `outline` de 36 px con su texto visible | Avisos sin acción o botones que solo muestran el icono en celular |
+| Mostrar cuánto del plan se usa | [`PlanUsage`](src/components/shared/plan-usage.tsx) (lee `PLAN_LIMITS`) | Límites escritos a mano en la pantalla |
 | Explicar una lista vacía | [`EmptyState`](src/components/shared/empty-state.tsx): por qué está vacía y qué hacer | Tabla en blanco o "Sin datos" |
 | Capturar un dato | `Field` + `Input` / `NativeSelect` / `Textarea` | Etiquetas sin `htmlFor` |
 | Confirmar algo que no se deshace | `AlertDialog` | `confirm()` |

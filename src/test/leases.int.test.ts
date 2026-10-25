@@ -111,7 +111,7 @@ describe("alta de contrato para un inquilino existente", () => {
     await prisma.lease.updateMany({ where: { unitId: a.freeUnit.id }, data: { status: "CANCELLED" } });
     const result = await createLease(
       {},
-      form({ tenantId: tenant.id, unitId: a.freeUnit.id, ...terms("2026-10-01", "2027-10-01") }),
+      form({ tenantId: tenant.id, unitId: a.freeUnit.id, ...terms("2030-10-01", "2031-10-01") }),
     );
     expect(result).toEqual({ error: expect.stringMatching(/reserva/) });
   });
@@ -125,6 +125,38 @@ describe("alta de contrato para un inquilino existente", () => {
       await createLease({}, form({ tenantId: b.tenant.id, unitId: a.unit.id, ...terms("2027-01-01", "2028-01-01") })),
     ).toHaveProperty("error");
     expect(await prisma.lease.count({ where: { unitId: b.freeUnit.id } })).toBe(0);
+  });
+
+  it("valida bajo el candado de la unidad: ve la reserva que entró mientras esperaba", async () => {
+    const unit = await prisma.unit.create({
+      data: { organizationId: a.organizationId, buildingId: a.building.id, code: `C-${randomUUID().slice(0, 4)}`, baseRent: 4000 },
+    });
+    const tenant = await newTenant(a);
+
+    // Otra alta (la de reservas usa el mismo candado) tiene tomada la unidad y
+    // escribe una estancia que se cruza. El contrato debe esperar y verla.
+    let pending: Promise<unknown> = Promise.resolve();
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${unit.id}))`;
+      pending = createLease(
+        {},
+        form({ tenantId: tenant.id, unitId: unit.id, ...terms("2031-03-01", "2032-03-01") }),
+      ).catch((error) => (error instanceof Redirect ? error.path : Promise.reject(error)));
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await tx.booking.create({
+        data: {
+          organizationId: a.organizationId,
+          unitId: unit.id,
+          guestName: "Huésped en espera",
+          checkIn: new Date("2031-03-10T12:00:00"),
+          checkOut: new Date("2031-03-12T12:00:00"),
+          totalAmount: 1500,
+        },
+      });
+    });
+
+    expect(await pending).toEqual({ error: expect.stringMatching(/reserva/) });
+    expect(await prisma.lease.count({ where: { unitId: unit.id } })).toBe(0);
   });
 });
 

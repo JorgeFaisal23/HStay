@@ -56,6 +56,7 @@ export async function createBuilding(
 
   revalidatePath("/edificios");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   return { ok: true };
 }
 
@@ -93,6 +94,7 @@ export async function updateBuilding(
   revalidatePath("/edificios");
   revalidatePath(`/edificios/${buildingId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   return { ok: true };
 }
 
@@ -144,6 +146,7 @@ export async function deleteBuilding(buildingId: string): Promise<ActionResult> 
 
   revalidatePath("/edificios");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   redirect("/edificios");
 }
 
@@ -217,6 +220,7 @@ export async function createUnit(
   revalidatePath("/edificios");
   revalidatePath(`/edificios/${parsed.data.buildingId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   redirect(`/unidades/${unit.id}`);
 }
 
@@ -282,6 +286,7 @@ export async function deleteUnit(unitId: string): Promise<ActionResult> {
   revalidatePath("/edificios");
   revalidatePath(`/edificios/${unit.buildingId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   redirect(`/edificios/${unit.buildingId}`);
 }
 

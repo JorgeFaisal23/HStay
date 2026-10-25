@@ -1,13 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { FilePlus2 } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/shared/form-field";
+import { GenerateChargesButton } from "@/components/payments/generate-charges-button";
 import { periodLabel } from "@/lib/format";
-import { generateMonthlyCharges } from "@/server/actions/payments";
 
 /** Selector de mes y generación de los cargos del periodo. */
 export function PaymentsToolbar({
@@ -22,7 +18,6 @@ export function PaymentsToolbar({
   editable: boolean;
 }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -40,27 +35,7 @@ export function PaymentsToolbar({
       </NativeSelect>
 
       {editable && missingCharges > 0 ? (
-        <Button
-          disabled={pending}
-          onClick={() =>
-            startTransition(async () => {
-              const result = await generateMonthlyCharges(period);
-              if (result.error) {
-                toast.error(result.error);
-                return;
-              }
-              toast.success(
-                result.created === 0
-                  ? "No había cargos por generar."
-                  : `Se generaron ${result.created} cargos.`,
-              );
-              router.refresh();
-            })
-          }
-        >
-          <FilePlus2 className="size-4" aria-hidden />
-          {pending ? "Generando…" : `Generar ${missingCharges} cargos`}
-        </Button>
+        <GenerateChargesButton period={period} count={missingCharges} />
       ) : null}
     </div>
   );

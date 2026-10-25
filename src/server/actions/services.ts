@@ -43,6 +43,7 @@ export async function setServiceAmount(input: {
     await logAction(db, session.sub, "Borrado de captura de servicio", "ServiceCharge", input.accountId, input.period);
     revalidatePath("/servicios");
     revalidatePath("/dashboard");
+    revalidatePath("/hoy");
     return { ok: true };
   }
 
@@ -63,6 +64,7 @@ export async function setServiceAmount(input: {
 
   revalidatePath("/servicios");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   return { ok: true };
 }
 
@@ -119,5 +121,6 @@ export async function copyPreviousMonth(period: string): Promise<
 
   revalidatePath("/servicios");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   return { ok: true, copied: pending.length };
 }

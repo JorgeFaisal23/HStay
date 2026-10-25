@@ -180,8 +180,8 @@ describe("reservas manuales", () => {
     form({ unitId, guestName: "Ana Huésped", checkIn, checkOut, guests: "2", totalAmount: "3000", source: "DIRECT" });
 
   it("rechaza traslapes con reservas y contratos", async () => {
-    // La reserva del fixture en freeUnit va del 10 al 12 de octubre.
-    expect(await createBooking({}, stay(a.freeUnit.id, "2026-10-11", "2026-10-13"))).toEqual({
+    // La reserva del fixture en freeUnit va del 10 al 12 de octubre de 2030 (futura a propósito: "reservas próximas" se compara contra hoy).
+    expect(await createBooking({}, stay(a.freeUnit.id, "2030-10-11", "2030-10-13"))).toEqual({
       error: expect.stringMatching(/Se cruza/),
     });
     expect(await createBooking({}, stay(a.unit.id, "2026-11-01", "2026-11-03"))).toEqual({
@@ -193,20 +193,20 @@ describe("reservas manuales", () => {
   });
 
   it("registra y cancela una estancia; la salida de una es la llegada de otra", async () => {
-    expect(await createBooking({}, stay(a.freeUnit.id, "2026-10-12", "2026-10-14"))).toEqual({ ok: true });
+    expect(await createBooking({}, stay(a.freeUnit.id, "2030-10-12", "2030-10-14"))).toEqual({ ok: true });
     const booking = await prisma.booking.findFirstOrThrow({
       where: { unitId: a.freeUnit.id, guestName: "Ana Huésped" },
     });
     expect(booking).toMatchObject({ source: "DIRECT", status: "CONFIRMED", guests: 2 });
 
-    expect(await createBooking({}, stay(a.freeUnit.id, "2026-10-13", "2026-10-15"))).toHaveProperty("error");
+    expect(await createBooking({}, stay(a.freeUnit.id, "2030-10-13", "2030-10-15"))).toHaveProperty("error");
 
     expect(await cancelBooking(booking.id)).toEqual({ ok: true });
     expect((await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } })).status).toBe("CANCELLED");
     expect(await cancelBooking(booking.id)).toHaveProperty("error");
 
     // Cancelada, las fechas vuelven a estar libres.
-    expect(await createBooking({}, stay(a.freeUnit.id, "2026-10-13", "2026-10-15"))).toEqual({ ok: true });
+    expect(await createBooking({}, stay(a.freeUnit.id, "2030-10-13", "2030-10-15"))).toEqual({ ok: true });
   });
 
   it("no toca reservas ni unidades de otra arrendadora, ni cancela las de Airbnb", async () => {

@@ -44,13 +44,28 @@ export function readLeaseTerms(formData: FormData) {
   });
 }
 
+type Tx = Parameters<Parameters<OrgDb["$transaction"]>[0]>[0];
+
+/**
+ * Candado de la unidad hasta que termine la transacción. Es el mismo que toma
+ * el alta de reservas (bookings.ts): contratos y estancias de una unidad se
+ * validan y escriben de uno en uno, así dos altas simultáneas no pueden pasar
+ * ambas la comprobación de traslapes.
+ */
+export async function lockUnit(tx: Tx, unitId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${unitId}))`;
+}
+
 /**
  * Por qué la unidad no puede recibir un contrato en esas fechas, o null si
  * puede: debe existir en la arrendadora, no estar en mantenimiento, no tener
  * otro contrato vigente ni reservas de corta estancia que se crucen.
+ *
+ * Para que valga, se llama dentro de la transacción que escribe y después de
+ * `lockUnit`.
  */
 export async function unitAvailabilityError(
-  db: OrgDb,
+  db: Pick<OrgDb, "unit" | "lease" | "booking">,
   unitId: string,
   start: Date,
   end: Date,

@@ -1,0 +1,152 @@
+# Plan temporal de ejecución — Observaciones HStay
+
+> Memoria operativa de una fase acotada. No sustituye a `DESIGN.md`, `CHANGELOG.md` ni al README.
+> Fuente de las observaciones: `Observaciones HStay.txt` (9 puntos, adjunto al encargo del 2026-10-25) y `LOGO HStay.jpeg`.
+
+## Estado actual
+- Estado general: en ejecución (B-03 desbloqueado por decisión del responsable el 2026-10-25)
+- Versión: 0.6
+- Última actualización: 2026-10-25
+- Alcance activo: B-03 (comprobantes por revisar) sobre la app 0.8.0 (rama `develop`, tag `v0.8.0`)
+- Próxima tarea: T-15 (modelo `PaymentProof`)
+- Bloqueos activos: B-01, B-02, B-04 a B-12, y la aprobación D-T02-título
+
+## Observaciones y trazabilidad
+| ID | Observación | Área | Tarea derivada | Prioridad | Estado |
+|---|---|---|---|---|---|
+| OBS-01 | "HStay Hoy": al entrar, lo que necesita atención (cobros vencidos, comprobantes, llegadas, limpiezas, reparaciones) con propiedad, responsable, fecha y botón para resolver | funcionalidad | T-02, T-03 ✔; B-01, B-02, B-03 | P2 | bloqueada (parcial: "Hoy" hecho con cobros vencidos, cargos por generar, llegadas, limpiezas derivadas, entregas, contratos y servicios; faltan comprobantes → B-03, reparaciones → B-02, responsable del equipo → B-01) |
+| OBS-02 | Pendientes que se generan solos y se actualizan al resolverlos; sin captura doble | funcionalidad | T-02, T-03 ✔; B-08 | P2 | completada (pendientes derivados de los datos; mejora opcional transferible: B-08) |
+| OBS-03 | Propiedades → unidades; mostrar cuántas incluye cada paquete y cuántas lleva el cliente; revisar límites | UX | T-04 ✔; B-07 | P3 | bloqueada (parcial: uso del plan visible; los límites nuevos son decisión comercial → B-07) |
+| OBS-04 | Rentas mensuales y vacacionales en la misma cuenta; tarifas por noche/semana/mes; calendario sin empalmes | datos | T-01 ✔; B-04 | P1 (empalmes) / P4 (tarifas) | bloqueada (parcial: empalmes corregidos; tarifas → B-04) |
+| OBS-05 | Dinero claro: cobrado, por cobrar, gastos, depósitos, pendiente al propietario; comprobante ≠ pago confirmado | funcionalidad | T-05, T-06 ✔; B-03, B-05, B-11 | P2 | bloqueada (parcial: cobrado, por cobrar, gastos y depósitos separados; regla del comprobante escrita; propietario → B-05; movimientos de depósito → B-11) |
+| OBS-06 | Acceso por persona: inquilino, huésped, propietario, equipo; cada uno solo lo suyo | seguridad | V-03, V-06 ✔; B-01, B-05, B-06, B-10 | P2 | bloqueada (el aislamiento actual está verificado; las vistas nuevas dependen de B-01, B-05, B-06, B-10) |
+| OBS-07 | Mantenimiento → gastos y reportes, con foto, costo, comprobante y revisión del administrador | funcionalidad | B-02 | P3 | bloqueada (B-02) |
+| OBS-08 | Fácil de empezar y de usar en celular; pocos pasos para reservar, revisar un cobro o reportar | UX | T-07, T-08, T-11 ✔; B-02 | P3 | bloqueada (parcial: primeros pasos, reserva y pago a un toque desde "Hoy", verificado a 375 px; "reportar un problema" → B-02) |
+| OBS-09 | Reportes descargables (pendientes, cobros, gastos, cuentas del propietario); qué falta antes de cerrar mes o estancia | funcionalidad | T-09, T-10 ✔; B-05, B-12 | P3 | bloqueada (parcial: CSV de pendientes, cobros y gastos; "Antes de cerrar el mes"; cuentas del propietario → B-05; cierre de estancia → B-12) |
+
+## Validaciones previas
+| ID | Tarea relacionada | Aspecto por verificar | Riesgo | Método de validación | Resultado/evidencia | Estado |
+|---|---|---|---|---|---|---|
+| V-01 | T-06 | ¿Existe algún flujo en el que subir un comprobante confirme un pago? | Pago marcado como cobrado sin revisión | Inspección de `src/server/actions/payments.ts` y del portal | Solo `registerPayment` (roles OWNER/ADMIN) crea `RentPayment`; el comprobante es opcional y lo adjunta quien confirma. El portal no tiene acciones de escritura | completada |
+| V-02 | T-01 | ¿Contratos y reservas se serializan por unidad? | Contrato y reserva (o dos contratos) empalmados por altas simultáneas | Inspección de `bookings.ts`, `leases.ts`, `tenants.ts` | Reservas toman `pg_advisory_xact_lock(hashtext(unitId))`; alta de contrato, alta de inquilino con contrato y renovación **no** lo tomaban y validaban fuera de la transacción → brecha real (corregida en T-01) | completada |
+| V-03 | T-02 | ¿Quién puede ver "Hoy"? | El rol Consulta (VIEWER) vería nombres de inquilinos y adeudos que hoy no ve | `src/lib/permissions.ts` + navegador | VIEWER solo entra a `/dashboard`, `/calendario`, `/cuenta`. En el navegador, `consulta@demo.mx` entra a `/dashboard` y al abrir `/hoy` vuelve a `/dashboard` | completada |
+| V-04 | T-08, T-11 | Navegación en celular | Menú inaccesible a 375 px | Captura a 375 px con el menú abierto | El menú lateral abre como hoja con "Hoy" primero; ninguna pantalla revisada tiene scroll horizontal a 375 px | completada |
+| V-05 | T-09 | ¿La exportación es de plan Premium? | Abrir una función de pago en el plan gratuito | Tabla de `/premium` | "Exportar a Excel y PDF" está declarada Premium. Se respeta | completada |
+| V-06 | T-09 | ¿Quién puede descargar? | Fuga de datos personales en un CSV | Prueba de integración + navegador | Gratuito → 403; consulta → 307 a `/dashboard`; inquilino → 307 a `/portal`; Premium → solo filas de su arrendadora; cada descarga queda en la bitácora | completada |
+
+## Plan priorizado
+| Orden | ID | Acción | Dependencias | Criterio de aceptación | Estado |
+|---|---|---|---|---|---|
+| 1 | T-01 | Candado por unidad y revalidación dentro de la transacción en alta de contrato, alta de inquilino con contrato y renovación | V-02 | Mismo candado que reservas; prueba de integración: contrato que se cruza con reserva y renovación que se cruza son rechazados; pruebas existentes pasan | completada |
+| 2 | T-02 | Página `/hoy` con pendientes derivados de los datos: cobros vencidos, cargos del mes sin generar, llegadas, salidas con limpieza por preparar, contratos por vencer y servicios sin monto. Cada asunto: propiedad/unidad, persona, fecha y acción | V-03 | Cada asunto muestra los cuatro datos; "Registrar pago" y "Generar cargos" funcionan desde la página; OWNER/ADMIN entran a `/hoy` al iniciar sesión; VIEWER no la ve | completada |
+| 3 | T-03 | Revalidar `/hoy` en las acciones que cambian sus datos | T-02 | Al registrar pago, generar cargos, reservar, cancelar o cambiar contratos, `/hoy` se actualiza | completada |
+| 4 | T-07 | Quitar del inicio la promesa de recordatorios automáticos, firma digital y usuarios por plan | — | El texto coincide con la tabla de `/premium` y con las decisiones vigentes | completada |
+| 5 | T-04 | Uso del plan visible en Propiedades (y en `/premium` también para Premium) | — | Se lee "X de Y propiedades · X de Y unidades" con el límite del plan | completada |
+| 6 | T-05 | Desglose de dinero del mes en Cobros: cobrado, por cobrar, gastos de servicios y depósitos en garantía | — | Cifras separadas, con `Amount`, y texto que aclara qué incluye cada una | completada |
+| 7 | T-06 | Dejar constancia de que el comprobante no confirma pagos (regla para B-03) | V-01 | Regla escrita en el código de pagos y en este plan | completada |
+| 8 | T-08 | Primeros pasos (lista derivada de los datos) y acciones rápidas en "Hoy" | T-02 | Con cuenta vacía, "Hoy" guía propiedad → unidad → inquilino → cargos; "Nueva reserva" a un toque | completada |
+| 9 | T-10 | "Antes de cerrar el mes": lo que falta revisar del periodo en Cobros | — | Lista de cargos sin generar, cobros abiertos y servicios sin monto del periodo elegido | completada |
+| 10 | T-09 | Exportar CSV de pendientes, cobros y gastos (Premium) | V-05, V-06 | Descargas abren en Excel con acentos correctos; solo OWNER/ADMIN de plan Premium; datos solo de su arrendadora | completada |
+| 11 | T-12 | Nombre de producto por defecto: HStay | — | `APP.name` por defecto = "HStay"; producción no se toca | completada |
+| 12 | T-11 | Verificación: tipos, lint, pruebas, build y capturas a 375 px claro/oscuro | todas | Todo en verde o con fallo documentado | completada |
+| 13 | T-13 | CHANGELOG `[Sin publicar]` | todas | Entradas en Añadido/Cambiado/Corregido | completada |
+| 14 | T-14 | `ButtonLink` con `nativeButton={false}` (detectado en T-11) | — | Sin el aviso de Base UI en la consola de `/hoy`, `/dashboard` y `/pagos` | completada |
+| 15 | T-15 | Modelo `PaymentProof` + migración aditiva + alcance por arrendadora | B-03 | Migración aplica en la base local; `scope.test`/`architecture.test` pasan | lista |
+| 16 | T-16 | Acciones `submitPaymentProof` (inquilino), `approvePaymentProof` (con monto ajustable) y `rejectPaymentProof` (con motivo) | T-15 | Enviar no toca el cargo; solo el propio inquilino envía para sus cargos; aprobar crea el pago una sola vez | lista |
+| 17 | T-17 | Portal: enviar comprobante y ver su estado / motivo de rechazo | T-16 | A 375 px, en pocos pasos y con foto obligatoria | lista |
+| 18 | T-18 | "Hoy" y Cobros: asunto "Por revisar" con diálogo de revisión | T-16 | Aprobar o rechazar desde la fila; el asunto desaparece al resolverlo | lista |
+| 19 | T-19 | Pruebas (unitarias e integración) y verificación en navegador | T-15…18 | Suite, lint, tipos y build en verde; flujo inquilino → dueño probado en el navegador | lista |
+| 20 | T-20 | Documentación: `DESIGN.md`, `CHANGELOG.md`, este plan | T-19 | Entradas en `[Sin publicar]` y B-03 cerrado con evidencia | lista |
+
+## Decisiones y supuestos temporales
+| Fecha | ID relacionado | Tipo | Decisión o supuesto | Justificación | Estado |
+|---|---|---|---|---|---|
+| 2026-10-25 | T-02 | decisión | Los pendientes de "Hoy" se **derivan** de los datos en cada carga (sin tabla de tareas). Resolver un asunto es cambiar el dato de origen, y el asunto desaparece solo | Cumple OBS-02 sin captura doble ni procesos programados (no hay automatizaciones en el producto) | vigente |
+| 2026-10-25 | T-02 | supuesto | "Responsable" se muestra como la persona del asunto (inquilino o huésped). La asignación a un miembro del equipo requiere B-01 | No existe modelo de asignación ni rol de equipo de campo | vigente |
+| 2026-10-25 | T-02 | supuesto | La limpieza se deriva de cada salida de huésped confirmada: si la reserva cambia o se cancela, la limpieza cambia o desaparece. Marcarla como hecha requiere B-01 | OBS-02 liga la limpieza a la reserva; no hay estado de limpieza guardado | vigente |
+| 2026-10-25 | T-02 | decisión | VIEWER no ve "Hoy" y sigue entrando a `/dashboard` | V-03: evitar exponerle adeudos y nombres | vigente |
+| 2026-10-25 | T-12 | decisión | El producto se llama HStay (lo nombran el encargo, las observaciones y el logo). Solo cambia el valor por defecto de `APP.name`, `.env.example`, README y `DESIGN.md` §2; `.env.production` y `render.yaml` no se tocan | Producción y demo se configuran por variable; cambiarlas es despliegue | vigente |
+| 2026-10-25 | T-09 | decisión | Exportación en CSV (UTF-8 con BOM, separador coma, montos como número) porque Excel lo abre sin dependencias nuevas; PDF sigue "Próximamente". Se neutralizan celdas que empiezan con `= + - @` | Sin librerías nuevas; respeta la tabla de `/premium`; evita inyección de fórmulas con nombres capturados por usuarios | vigente |
+| 2026-10-25 | T-02 | decisión (D-T02-título) | La pantalla se titula "Hoy" (no "HStay Hoy"): `DESIGN.md` §2 deja el nombre del producto en los márgenes, y el panel lleva la marca de la arrendadora. Si se quiere el nombre del producto en el título, hay que cambiar primero esa regla | Prioridad de las convenciones del repositorio sobre la observación | pendiente de aprobación |
+| 2026-10-25 | T-02 | decisión | Ventana de llegadas, salidas y entregas: 7 días; contratos por vencer: 60 días (los mismos del resumen), urgentes a 30 | Coherencia con el resumen; "Hoy" no debe esconder lo de mañana | vigente |
+| 2026-10-25 | T-02 | supuesto | Un cobro vencido se detecta por fecha (`dueDate` < hoy y no pagado), no solo por el estado, para no depender del barrido horario | OBS-02: "si vence un pago, aparece el aviso" | vigente |
+| 2026-10-25 | B-08 | riesgo | Los cargos mensuales se generan a mano ("Generar cargos"); "Hoy" avisa cuando faltan, pero no los crea solo | Generarlos solos cambia datos de pagos: requiere decisión | vigente |
+| 2026-10-25 | T-02 | decisión | "Inicio" del menú pasa a llamarse "Resumen" y "Hoy" va primero | Dos entradas llamadas "inicio" confundirían; el resumen sigue igual | vigente |
+| 2026-10-25 | T-05 | supuesto | "Cobrado" es lo pagado de los cargos del mes (como ya mostraba Cobros), no todo lo que entró en el mes; los depósitos son los pactados en contratos vigentes y se rotulan como dinero del inquilino | No hay registro de recepción de depósitos (B-11) | vigente |
+| 2026-10-25 | B-04 | riesgo | Hoy `Unit.baseRent` significa renta mensual en unidades normales y **tarifa por noche** en unidades `SHORT_TERM` (`getBookableUnits`). Una unidad no puede tener ambas tarifas: mezclar mensual y vacacional en la misma unidad exige campos nuevos | Hallazgo al revisar `src/lib/queries/properties.ts` | vigente |
+| 2026-10-25 | B-03 | decisión | Del responsable: el inquilino envía monto, forma de pago, referencia y **foto obligatoria**; la imagen va como data URL en la base (mismo límite que los recibos actuales). El equipo puede ajustar el monto antes de aprobar; rechazar exige motivo visible para el inquilino, que puede reenviar | Respuesta a las preguntas de B-03 | vigente |
+| 2026-10-25 | P-01, P-02 | decisión | Del responsable: publicar 0.8.0 con tag `v0.8.0`, incluyendo en el mismo commit los tres archivos de prueba previos; `LOGO HStay.jpeg` queda fuera del commit (no es código) | Respuesta del responsable | vigente |
+| 2026-10-25 | T-02 | decisión | `DESIGN.md` §11 gana dos filas: "Mostrar un pendiente que se resuelve ahí mismo" y `PlanUsage` | AGENTS.md: la regla va antes que el código | vigente |
+
+## Seguimiento de implementación
+| Fecha | ID | Acción realizada | Archivos o componentes afectados | Verificación realizada | Resultado |
+|---|---|---|---|---|---|
+| 2026-10-25 | — | Análisis del repositorio y línea base de pruebas | — | `npm run test:all` (128/128), `npm run lint` | en verde antes de cambiar nada |
+| 2026-10-25 | T-01 | `lockUnit()` (mismo candado que reservas) y `unitAvailabilityError` dentro de la transacción en alta de contrato, alta de inquilino con contrato y renovación | `src/server/actions/lease-rules.ts`, `leases.ts`, `tenants.ts`, `src/test/leases.int.test.ts` | Prueba nueva retiene el candado, lanza el alta e inserta una reserva que se cruza. **Sin el candado la prueba falla** (se crea el contrato encima de la reserva); con él, pasa. 11/11 en `leases.int` | completada |
+| 2026-10-25 | T-02 | Página `/hoy` con pendientes derivados (`buildTodayItems`, puro) y consulta `getTodayData`; guía de primeros pasos; "Nueva reserva" en el encabezado; `RegisterPaymentDialog` y `GenerateChargesButton` reutilizados desde la fila | `src/lib/today.ts`, `src/lib/queries/today.ts`, `src/app/(dashboard)/hoy/page.tsx`, `src/components/payments/*` (`payment-row-actions.tsx` se movió desde `pagos/`), `src/lib/payments.ts` (`chargeableLeasesWhere`, `chargeDueDate`), `src/lib/format.ts` (`relativeDay`) | `today.test.ts` 8/8 (orden, limpieza urgente con llegada el mismo día, limpieza que sigue a la reserva, ventanas de contratos); `today.int.test.ts` 2/2 (solo datos de su arrendadora; pagar, generar el cargo o cancelar la reserva hace desaparecer el asunto); capturas a 375 px y 1280 px | completada |
+| 2026-10-25 | T-02 | Inicio por rol: OWNER/ADMIN → `/hoy`; VIEWER → `/dashboard`. Menú: "Hoy" primero, "Inicio" pasa a "Resumen" | `src/lib/permissions.ts`, `app-sidebar.tsx`, `dashboard/page.tsx`, `redirect.test.ts`, `accounts.int.test.ts` | `redirect.test.ts` cubre VIEWER fuera de `/hoy`; en el navegador dueño y dueño gratuito entran a `/hoy`, consulta a `/dashboard` | completada |
+| 2026-10-25 | T-03 | `revalidatePath("/hoy")` junto a cada `revalidatePath("/dashboard")` | `src/server/actions/{bookings,leases,payments,properties,services,tenants}.ts` | Inspección (14 llamadas); los diálogos ya hacen `router.refresh()` | completada |
+| 2026-10-25 | T-06 | Regla escrita: `registerPayment` es la única forma de confirmar un pago; un comprobante nunca confirma | `src/server/actions/payments.ts` | V-01 | completada |
+| 2026-10-25 | T-07 | El aviso Premium del resumen ya no promete recordatorios automáticos, firma digital ni usuarios por plan | `src/app/(dashboard)/dashboard/page.tsx` | `rg "recordatorio\|automátic"`: solo quedan textos rotulados "Próximamente" o ajenos | completada |
+| 2026-10-25 | T-04 | `PlanUsage` en Propiedades; tarjeta de uso en `/premium` para ambos planes; los textos de límites salen de `PLAN_LIMITS` | `src/components/shared/plan-usage.tsx`, `edificios/page.tsx`, `premium/page.tsx` | Captura `edificios-375-gratuito`: "Plan gratuito · 1 de 2 propiedades · 3 de 20 unidades · Ver planes" | completada |
+| 2026-10-25 | T-05, T-10 | Tarjetas "Dinero de {mes}" (avance, gastos de servicios, depósitos en garantía) y "Antes de cerrar el mes" en Cobros; `missingCharges` exacto con `chargeableLeasesWhere` | `src/lib/queries/payments.ts`, `src/app/(dashboard)/pagos/page.tsx`, `pagos/payments-toolbar.tsx` | Capturas `pagos-375-claro/oscuro` y `pagos-1280`; ajuste de alineación de la etiqueta de estado a 375 px | completada |
+| 2026-10-25 | T-09 | `lib/csv.ts` (BOM, CRLF, escape, defensa de fórmulas), `lib/queries/exports.ts`, route handler `/reportes/exportar/[tipo]`, menú "Exportar" en Reportes, fila de la tabla de `/premium` | `src/lib/csv.ts`, `src/lib/queries/exports.ts`, `src/app/(dashboard)/reportes/exportar/[tipo]/route.ts`, `src/components/reports/export-menu.tsx`, `reportes/page.tsx`, `premium/page.tsx` | `csv.test.ts` 3/3; `exports.int.test.ts` 3/3 (403 gratuito, 404 tipo desconocido, solo su arrendadora, BOM `EF BB BF`, bitácora); descarga real en el navegador con sesión (200, `text/csv`) | completada |
+| 2026-10-25 | T-12 | Producto HStay por defecto | `src/lib/app.ts`, `.env.example`, `README.md`, `DESIGN.md` §2 | `rg AppRentas src` sin resultados; el pie del menú dice "Impulsado por HStay" | completada |
+| 2026-10-25 | T-14 | `ButtonLink` con `nativeButton={false}` | `src/components/shared/button-link.tsx` | Consola del navegador en `/hoy`, `/dashboard`, `/pagos`: el aviso de Base UI desaparece | completada |
+| 2026-10-25 | T-11 | Verificación final | — | `npm run test:all` **145/145** (18 archivos); `npm run lint` limpio; `npx tsc --noEmit` limpio; `npm run build` correcto; comprobaciones de `DESIGN.md` §15 sin hallazgos en archivos nuevos; capturas a 375 px claro/oscuro y 1280 px sin scroll horizontal | completada |
+| 2026-10-25 | P-01 | `npm version minor` (0.8.0), `[Sin publicar]` → `[0.8.0] - 2026-10-25`, `APP.version` = 0.8.0, commit y tag `v0.8.0` | `package.json`, `package-lock.json`, `CHANGELOG.md`, `src/lib/app.ts` | `npm run test:all` y `npm run lint` antes del commit | completada |
+| 2026-10-25 | T-13 | Entradas en `CHANGELOG.md` → `[Sin publicar]` (Añadido, Cambiado, Corregido) | `CHANGELOG.md` | Inspección | completada |
+
+## Consistencia visual y branding
+- **Se conserva:** el sistema de `DESIGN.md` (tokens, `StatusBadge`, `Callout`, `Amount`, una acción `default` por vista, `bg-brand-soft` máximo una vez). La marca de cada arrendadora sigue vistiendo la interfaz; el producto solo aparece en los márgenes.
+- **Del logo se toma:** el nombre "HStay" y la inicial "H" que ya dibuja `AppMark` a partir de `APP.name`.
+- **Inconsistencias detectadas:** (1) el producto se llamaba "AppRentas" en código y documentación; (2) el pie dice "HStay 0.1.0" porque `APP.version` no sigue a `package.json` (0.7.0) → P-01.
+- **Ajustes realizados:** nombre HStay por defecto; "Hoy" usa solo componentes y tokens existentes (en "Hoy" la única acción `default` es "Nueva reserva", y la guía de primeros pasos es la única superficie `bg-brand-soft`, solo mientras está pendiente); revisado en claro y oscuro con dos marcas (verde azulado de Rentas del Valle y azul de Casa Norte).
+- **Pendiente de aprobación:** B-09 (logo como imagen y color del producto) y D-T02-título.
+
+## Pendientes y bloqueos
+| ID | Descripción | Impacto | Requisito para desbloquear | Responsable sugerido |
+|---|---|---|---|---|
+| B-01 | Limpiezas y tareas con responsable, estado y vista "mis tareas" para el equipo (OBS-01, 02, 06) | "Hoy" muestra limpiezas derivadas pero no se pueden asignar ni marcar como hechas | Decidir: (1) quién limpia/repara: ¿cuentas del equipo existentes (ADMIN) o un rol nuevo "Operación" con acceso solo a sus tareas?; (2) ¿ese rol ocupa usuario contratado (`maxUsers`)?; (3) ¿una tarea se cierra con foto? | Dueño del producto |
+| B-02 | Reportes de mantenimiento con foto, costo, comprobante y paso a gastos con revisión (OBS-07, 08) | Sin módulo de mantenimiento ni "reportar un problema" | Decidir: (1) quién reporta (¿inquilino desde el portal, equipo, ambos?); (2) a qué cuenta va el gasto (unidad, propiedad o propietario, ver B-05); (3) dónde se guardan fotos y comprobantes: hoy son data URL en la base (`RentPayment.receiptUrl`), no escala para fotos de reparaciones | Dueño del producto + técnico |
+| B-03 | Comprobantes que sube el inquilino y quedan "por revisar" (OBS-01, 05, 06) | "Hoy" no puede listar comprobantes por revisar porque el inquilino no puede subirlos | Aprobar: (1) dar al inquilino permiso de escritura (subir comprobante con monto, forma de pago y referencia); (2) estados propuestos: Enviado → Aprobado (crea el pago con `registerPayment`) / Rechazado (con motivo); (3) almacenamiento de imágenes (igual que B-02). Regla fija: subir nunca confirma (T-06) | Dueño del producto |
+| B-04 | Tarifas por noche, semana y mes por unidad (OBS-04) | El total de una reserva se sugiere solo con la tarifa por noche de unidades `SHORT_TERM` | Definir la regla: ¿7+ noches usa la tarifa semanal prorrateada (semanal/7 por noche) o semanas completas + noches sueltas?; ¿28+ noches usa la mensual?; ¿una unidad puede tener a la vez renta mensual y tarifa por noche? (hoy `baseRent` es una u otra según el estado) | Dueño del producto |
+| B-05 | Propietario (dueño del inmueble distinto de la arrendadora), su acceso y "dinero pendiente de entregarle" (OBS-05, 06, 09) | No hay cuentas del propietario ni reporte para él | Definir: (1) ¿una propiedad tiene propietario distinto de la arrendadora?; (2) comisión de administración (porcentaje o fija) y qué gastos se le descuentan; (3) cómo se registra una entrega de dinero; (4) ¿el propietario ocupa usuario contratado? | Dueño del producto |
+| B-06 | Vista del huésped con llegada, ubicación, wifi y reglas (OBS-06) | El portal muestra la reserva, pero no wifi ni reglas, y hoy no se crean cuentas para huéspedes | Decidir: (1) ¿el huésped entra con cuenta (ocupa usuario contratado) o con un enlace de un solo uso por reserva?; (2) aprobar guardar y mostrar la contraseña del wifi por unidad | Dueño del producto |
+| B-07 | Revisión de límites de los planes (OBS-03) | Siguen 2 propiedades / 20 unidades en gratuito | Números nuevos para cada plan (decisión comercial). Cambiarlos ya es un solo lugar: `PLAN_LIMITS` en `src/lib/plans.ts` (las pantallas lo leen de ahí) | Dueño del producto |
+| B-08 | Generación automática de cargos mensuales (OBS-02) | Hay que pulsar "Generar cargos" cada mes ("Hoy" lo recuerda) | Aprobar que el barrido perezoso cree los cargos del mes en curso de los contratos vigentes (usaría `chargeableLeasesWhere`) | Dueño del producto |
+| B-09 | Uso del logo y color del producto | El distintivo del producto sigue siendo la inicial sobre `#12263F` | Entregar logo en SVG o PNG transparente (isotipo y logotipo) y decidir si cambia `NEXT_PUBLIC_APP_COLOR` | Diseño / dueño |
+| B-10 | Documentos del inquilino (contrato firmado, identificación) en el portal (OBS-06) | El portal no muestra documentos | Mismo almacenamiento de archivos que B-02, y qué documentos se comparten | Dueño del producto + técnico |
+| B-11 | Seguimiento de depósitos de garantía (recibido, retenido, devuelto) (OBS-05) | Solo se conoce el depósito pactado en el contrato | Decidir si se registra la recepción y la devolución del depósito como movimientos | Dueño del producto |
+| B-12 | "Antes de cerrar una estancia" (OBS-09) | Al salir un huésped solo se avisa la limpieza | Definir qué se revisa al cerrar una estancia (¿cobro de la reserva? hoy `Booking.totalAmount` no tiene estado de pago; ¿daños?; ¿depósito?) | Dueño del producto |
+| P-01 | **Resuelto 2026-10-25** (commit y tag `v0.8.0`; `APP.version` = 0.8.0). Antes: publicar la versión, cambio MINOR (0.8.0). Falta `npm version minor --no-git-tag-version`, mover `[Sin publicar]` a `## [0.8.0]`, sincronizar `APP.version` (hoy "0.1.0"), commit y `git tag v0.8.0` | Los cambios siguen sin commit en `develop` | Visto bueno del responsable para versionar, hacer commit y etiquetar | Responsable del repositorio |
+| P-02 | **Resuelto 2026-10-25** (van en el commit de 0.8.0). Antes: cambios previos ajenos a esta fase en el árbol de trabajo: `src/test/fixtures.ts`, `leases.int.test.ts`, `properties.int.test.ts` (fechas de prueba movidas a 2030) | Se mezclarían con el commit de la fase | Decidir si van en el mismo commit o aparte | Responsable del repositorio |
+| P-03 | Despliegue: `.env.production` y `render.yaml` siguen con `NEXT_PUBLIC_APP_NAME=AppRentas` | Producción y demo no mostrarán "HStay" | Cambiar la variable en cada entorno y recompilar, si se aprueba | Responsable de despliegue |
+
+## Criterios de cierre
+La fase solo puede cerrarse cuando:
+- Cada observación tenga estado completada, descartada con justificación o bloqueada con información accionable. → **Cumple** (1 completada, 8 bloqueadas parcialmente con requisito concreto).
+- Se hayan completado las validaciones críticas. → **Cumple** (V-01 a V-06).
+- Cada cambio implementado tenga evidencia de prueba o verificación. → **Cumple** (ver Seguimiento).
+- No existan regresiones conocidas de prioridad alta. → **Cumple** (145/145, build correcto).
+- El Change Log esté actualizado. → **Cumple** (este archivo y `CHANGELOG.md`).
+- Se haya documentado cualquier pendiente transferible a una fase posterior. → **Cumple** (B-01 a B-12, P-01 a P-03).
+
+Falta la aprobación humana de D-T02-título y de P-01 para declarar la fase completada.
+
+## Change Log
+| Versión | Fecha | Tipo de cambio | Descripción | IDs afectados | Impacto |
+|---|---|---|---|---|---|
+| 0.1 | 2026-10-25 | alcance | Plan creado: 9 observaciones, 13 tareas, 5 validaciones y 11 bloqueos tras comparar con el código de la 0.7.0 | OBS-01…09, T-01…13, V-01…05, B-01…11 | Define la fase |
+| 0.2 | 2026-10-25 | implementación | Corregido el empalme de contratos y reservas por altas simultáneas (prueba que falla sin el candado) | T-01, V-02, OBS-04 | P1 resuelto |
+| 0.3 | 2026-10-25 | implementación + decisión | "Hoy" con pendientes derivados, inicio por rol, revalidación, regla del comprobante, aviso Premium honesto. Decisiones: título "Hoy" (pendiente de aprobación), ventanas de 7/60 días, VIEWER fuera | T-02, T-03, T-06, T-07, T-08, V-03, OBS-01, 02, 08 | Nueva pantalla de inicio para OWNER/ADMIN |
+| 0.4 | 2026-10-25 | implementación + validación | Uso del plan, dinero del mes, antes de cerrar el mes, exportación CSV Premium con bitácora, nombre HStay por defecto; V-06 añadida | T-04, T-05, T-09, T-10, T-12, V-05, V-06, OBS-03, 05, 09 | Más visibilidad de dinero y descargas |
+| 0.6 | 2026-10-25 | decisión + alcance | El responsable responde B-03 y P-01/P-02: se publica 0.8.0 y se abre la implementación de comprobantes por revisar (T-15…T-20, ver plan aprobado) | B-03, P-01, P-02, OBS-01, 05, 06 | B-03 pasa de bloqueado a en ejecución |
+| 0.5 | 2026-10-25 | validación + bloqueo | Verificación final (145/145, lint, tipos, build, capturas 375/1280 claro/oscuro); T-14 añadida y corregida; B-12 y P-01…P-03 añadidos; hallazgo de `baseRent` como tarifa por noche documentado en B-04; estados finales de observaciones | T-11, T-13, T-14, B-04, B-12, P-01…03, V-04 | Fase en espera de decisiones |
+
+## Resumen de ejecución más reciente
+- Completado: T-01 a T-14. Corrección de empalmes de contratos/reservas (P1); "Hoy" como inicio del equipo con pendientes que se generan y resuelven solos; primeros pasos; uso del plan; dinero del mes separado; "Antes de cerrar el mes"; CSV de pendientes, cobros y gastos (Premium); nombre HStay por defecto; `ButtonLink` accesible. Evidencia: 145/145 pruebas (17 nuevas), lint, tipos y build en verde; capturas a 375 px y 1280 px en claro y oscuro.
+- En curso: nada.
+- Siguiente acción: con las decisiones de B-03 y B-01, completar "Hoy" (comprobantes por revisar y tareas con responsable); con P-01, publicar 0.8.0.
+- Bloqueos: B-01 a B-12 (ver tabla), todos por decisiones de negocio, permisos, pagos o almacenamiento de archivos.
+- Decisiones requeridas del responsable humano: (1) aprobar el título "Hoy" o cambiar la regla de `DESIGN.md` §2 para "HStay Hoy"; (2) aprobar versionar, hacer commit y etiquetar 0.8.0 (P-01, P-02); (3) responder B-01, B-03 y B-04 primero: son las que más avanzan las observaciones; (4) B-07 (límites) y B-05 (propietario) como decisiones comerciales.

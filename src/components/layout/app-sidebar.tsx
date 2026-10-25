@@ -8,6 +8,7 @@ import {
   CalendarRange,
   FileSignature,
   LayoutDashboard,
+  ListChecks,
   Palette,
   Plug,
   Receipt,
@@ -46,7 +47,8 @@ type NavItem = {
 };
 
 const MAIN_NAV: NavItem[] = [
-  { href: "/dashboard", label: "Inicio", icon: LayoutDashboard },
+  { href: "/hoy", label: "Hoy", icon: ListChecks },
+  { href: "/dashboard", label: "Resumen", icon: LayoutDashboard },
   { href: "/edificios", label: "Propiedades", icon: Building2 },
   { href: "/calendario", label: "Calendario", icon: CalendarRange },
   { href: "/servicios", label: "Servicios", icon: Receipt },

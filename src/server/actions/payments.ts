@@ -2,8 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { requireOrgUserAction } from "@/lib/auth/session";
-import { periodToDate, toNumber } from "@/lib/format";
-import { computeChargeStatus, remainingOf, toCents } from "@/lib/payments";
+import { toNumber } from "@/lib/format";
+import {
+  chargeDueDate,
+  chargeableLeasesWhere,
+  computeChargeStatus,
+  remainingOf,
+  toCents,
+} from "@/lib/payments";
 import type { OrgDb } from "@/lib/db/scoped";
 import { z } from "zod";
 import { logAction } from "@/server/actions/audit";
@@ -21,47 +27,26 @@ export async function generateMonthlyCharges(
   const { session, orgId, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
   if (!PERIOD.test(period)) return { error: "Periodo no válido." };
 
-  const monthStart = periodToDate(period);
-  const monthEnd = new Date(
-    monthStart.getFullYear(),
-    monthStart.getMonth() + 1,
-    0,
-  );
-
   const leases = await db.lease.findMany({
-    where: {
-      status: "ACTIVE",
-      startDate: { lte: monthEnd },
-      endDate: { gte: monthStart },
-      rentCharges: { none: { period } },
-    },
+    where: chargeableLeasesWhere(period),
     select: { id: true, rentAmount: true, paymentDay: true },
   });
 
   if (leases.length === 0) return { ok: true, created: 0 };
 
-  const lastDay = monthEnd.getDate();
-
   await db.rentCharge.createMany({
-    data: leases.map((lease) => ({
-      organizationId: orgId,
-      leaseId: lease.id,
-      period,
-      // Si el contrato dice "día 31" y el mes tiene 30, se cobra el último día.
-      dueDate: new Date(
-        monthStart.getFullYear(),
-        monthStart.getMonth(),
-        Math.min(lease.paymentDay, lastDay),
-        12,
-      ),
-      amount: lease.rentAmount,
-      // Un mes que ya pasó nace vencido.
-      status: computeChargeStatus({
-        amount: toNumber(lease.rentAmount),
-        paid: 0,
-        dueDate: new Date(monthStart.getFullYear(), monthStart.getMonth(), Math.min(lease.paymentDay, lastDay), 12),
-      }),
-    })),
+    data: leases.map((lease) => {
+      const dueDate = chargeDueDate(period, lease.paymentDay);
+      return {
+        organizationId: orgId,
+        leaseId: lease.id,
+        period,
+        dueDate,
+        amount: lease.rentAmount,
+        // Un mes que ya pasó nace vencido.
+        status: computeChargeStatus({ amount: toNumber(lease.rentAmount), paid: 0, dueDate }),
+      };
+    }),
     skipDuplicates: true,
   });
 
@@ -76,6 +61,7 @@ export async function generateMonthlyCharges(
 
   revalidatePath("/pagos");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   return { ok: true, created: leases.length };
 }
 
@@ -126,6 +112,7 @@ async function recalcCharge(tx: Tx, chargeId: string) {
 function refreshPayments(tenantId: string) {
   revalidatePath("/pagos");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   revalidatePath("/portal");
   revalidatePath("/portal/pagos");
   revalidatePath(`/inquilinos/${tenantId}`);
@@ -142,6 +129,12 @@ const paymentSchema = z.object({
 /**
  * Registra un pago, total o parcial. No se puede pagar más de lo que falta:
  * un error de captura no debe dejar saldos a favor fantasmas.
+ *
+ * Es la única forma de confirmar un pago y solo la usa el equipo (OWNER o
+ * ADMIN). El comprobante es evidencia que adjunta quien confirma: subir una
+ * imagen nunca marca un cargo como pagado. Si algún día el inquilino envía
+ * comprobantes, quedan por revisar hasta que alguien del equipo llame a esta
+ * acción.
  */
 export async function registerPayment(input: {
   chargeId: string;

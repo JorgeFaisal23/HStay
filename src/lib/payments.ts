@@ -32,3 +32,31 @@ export function computeChargeStatus(input: {
 export function remainingOf(amount: number, paid: number) {
   return Math.max(0, toCents(amount) - toCents(paid)) / 100;
 }
+
+/** Primer y último día de un periodo "YYYY-MM". */
+export function periodBounds(period: string) {
+  const [year, month] = period.split("-").map(Number);
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0);
+  return { start, end };
+}
+
+/**
+ * Contratos que deben tener cargo en el periodo y aún no lo tienen. Lo usan
+ * "Generar cargos" y el aviso de "Hoy", para que cuenten exactamente lo mismo.
+ */
+export function chargeableLeasesWhere(period: string) {
+  const { start, end } = periodBounds(period);
+  return {
+    status: "ACTIVE" as const,
+    startDate: { lte: end },
+    endDate: { gte: start },
+    rentCharges: { none: { period } },
+  };
+}
+
+/** Fecha de pago del cargo: si el contrato dice "día 31" y el mes tiene 30, el último día. */
+export function chargeDueDate(period: string, paymentDay: number) {
+  const { start, end } = periodBounds(period);
+  return new Date(start.getFullYear(), start.getMonth(), Math.min(paymentDay, end.getDate()), 12);
+}

@@ -8,7 +8,8 @@ describe("safeRedirect", () => {
   });
 
   it("manda a inicio si no hay destino", () => {
-    expect(safeRedirect(undefined, "OWNER")).toBe("/dashboard");
+    expect(safeRedirect(undefined, "OWNER")).toBe("/hoy");
+    expect(safeRedirect(undefined, "VIEWER")).toBe("/dashboard");
     expect(safeRedirect("", "TENANT")).toBe("/portal");
   });
 
@@ -21,12 +22,13 @@ describe("safeRedirect", () => {
     "/pagos\\..\\x",
     "/%0a//evil.com\n",
   ])("rechaza %s", (target) => {
-    expect(safeRedirect(target, "OWNER")).toBe("/dashboard");
+    expect(safeRedirect(target, "OWNER")).toBe("/hoy");
   });
 
   it("rechaza rutas que el rol no puede abrir", () => {
     expect(safeRedirect("/dashboard", "TENANT")).toBe("/portal");
     expect(safeRedirect("/pagos", "VIEWER")).toBe("/dashboard");
-    expect(safeRedirect("/configuracion/marca", "ADMIN")).toBe("/dashboard");
+    expect(safeRedirect("/configuracion/marca", "ADMIN")).toBe("/hoy");
+    expect(safeRedirect("/hoy", "VIEWER")).toBe("/dashboard");
   });
 });

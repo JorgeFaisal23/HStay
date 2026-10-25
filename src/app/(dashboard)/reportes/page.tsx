@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Download, PiggyBank, Receipt, TrendingUp } from "lucide-react";
+import { PiggyBank, Receipt, TrendingUp } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -12,8 +12,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Amount } from "@/components/shared/amount";
 import { PremiumGate } from "@/components/premium/premium-gate";
-import { ComingSoonBadge } from "@/components/premium/coming-soon-badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -26,7 +24,8 @@ import { requireOrgUser } from "@/lib/auth/session";
 import { requireCurrentOrg } from "@/lib/org";
 import { chartPalette } from "@/lib/brand";
 import { getReportsData } from "@/lib/queries/reports";
-import { moneyCompact } from "@/lib/format";
+import { moneyCompact, periodLabel, recentPeriods } from "@/lib/format";
+import { ExportMenu } from "@/components/reports/export-menu";
 import {
   IncomeVsExpensesChart,
   ProfitByBuildingChart,
@@ -54,11 +53,13 @@ export default async function ReportsPage() {
         title="Reportes"
         description="Rentabilidad, ocupación y gasto de tus propiedades a lo largo del tiempo."
         action={
-          <Button variant="outline" disabled>
-            <Download className="size-4" aria-hidden />
-            Exportar
-            <ComingSoonBadge />
-          </Button>
+          <ExportMenu
+            enabled={org.plan === "PREMIUM"}
+            months={recentPeriods(2).map((period) => ({
+              period,
+              label: periodLabel(period).toLowerCase(),
+            }))}
+          />
         }
       />
 

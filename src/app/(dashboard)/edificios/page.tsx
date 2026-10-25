@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { getBuildingsOverview } from "@/lib/queries/properties";
 import { requireOrgUser } from "@/lib/auth/session";
+import { requireCurrentOrg } from "@/lib/org";
+import { PlanUsage } from "@/components/shared/plan-usage";
 import { canEdit } from "@/lib/permissions";
 import { NewBuildingDialog } from "./new-building-dialog";
 
@@ -15,7 +17,7 @@ export const metadata: Metadata = { title: "Propiedades" };
 
 export default async function BuildingsPage() {
   const { session, db } = await requireOrgUser(["OWNER", "ADMIN"]);
-  const buildings = await getBuildingsOverview(db);
+  const [buildings, org] = await Promise.all([getBuildingsOverview(db), requireCurrentOrg()]);
   const editable = canEdit(session.role);
 
   const totalUnits = buildings.reduce((sum, b) => sum + b.totalUnits, 0);
@@ -32,6 +34,10 @@ export default async function BuildingsPage() {
         }
         action={editable ? <NewBuildingDialog /> : null}
       />
+
+      {buildings.length > 0 ? (
+        <PlanUsage plan={org.plan} buildings={buildings.length} units={totalUnits} />
+      ) : null}
 
       {buildings.length === 0 ? (
         <EmptyState

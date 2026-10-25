@@ -115,18 +115,27 @@ function UndoPayments({ chargeId, tenantName }: { chargeId: string; tenantName: 
   );
 }
 
-function RegisterPaymentDialog({
+/**
+ * En la tabla de Cobros el botón es la acción de cada fila y en celular se
+ * reduce al icono; fuera de ella (p. ej. en "Hoy") va en `outline` y con su
+ * texto siempre visible.
+ */
+export function RegisterPaymentDialog({
   chargeId,
   tenantName,
   amount,
   remaining,
   partial,
+  variant = "default",
+  iconOnlyOnMobile = true,
 }: {
   chargeId: string;
   tenantName: string;
   amount: number;
   remaining: number;
   partial: boolean;
+  variant?: "default" | "outline";
+  iconOnlyOnMobile?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -183,9 +192,11 @@ function RegisterPaymentDialog({
     >
       <DialogTrigger
         render={
-          <Button size="sm">
+          <Button size="sm" variant={variant}>
             <Check className="size-4" aria-hidden />
-            <span className="sr-only sm:not-sr-only">{partial ? "Abonar" : "Registrar pago"}</span>
+            <span className={iconOnlyOnMobile ? "sr-only sm:not-sr-only" : undefined}>
+              {partial ? "Abonar" : "Registrar pago"}
+            </span>
           </Button>
         }
       />

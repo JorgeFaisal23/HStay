@@ -134,6 +134,7 @@ export async function createBooking(
   revalidatePath("/calendario");
   revalidatePath(`/unidades/${data.unitId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   return { ok: true };
 }
 
@@ -159,5 +160,6 @@ export async function cancelBooking(bookingId: string): Promise<ActionResult> {
   revalidatePath("/calendario");
   revalidatePath(`/unidades/${booking.unitId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   return { ok: true };
 }

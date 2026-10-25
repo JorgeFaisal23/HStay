@@ -129,6 +129,14 @@ export function deadlineLabel(days: number) {
   return `vence en ${dayCount(days)}`;
 }
 
+/** Cuándo pasa algo respecto de hoy: "hoy", "mañana", "en 3 días", "hace 2 días". */
+export function relativeDay(days: number) {
+  if (days === 0) return "hoy";
+  if (days === 1) return "mañana";
+  if (days === -1) return "ayer";
+  return days > 0 ? `en ${dayCount(days)}` : `hace ${dayCount(Math.abs(days))}`;
+}
+
 export function initials(name: string) {
   return name
     .split(" ")

@@ -131,7 +131,7 @@ describe("contraseña temporal", () => {
     const path = await redirectOf(
       changePassword({}, form({ password: "una clave nueva", confirm: "una clave nueva" })),
     );
-    expect(path).toBe("/dashboard");
+    expect(path).toBe("/hoy");
     expect(jar.cookies.get(SESSION_COOKIE)).not.toBe(oldToken);
 
     const owner = await prisma.user.findUniqueOrThrow({ where: { id: a.owner.id } });
@@ -273,7 +273,7 @@ describe("enlaces de un solo uso", () => {
     await prisma.user.update({ where: { id: adminA.id }, data: { active: true } });
 
     const fields = { token: raw, purpose: "RESET", password: "clave desde enlace", confirm: "clave desde enlace" };
-    expect(await redirectOf(completePasswordLink({}, form(fields)))).toBe("/dashboard");
+    expect(await redirectOf(completePasswordLink({}, form(fields)))).toBe("/hoy");
 
     const session = await verifySession(jar.cookies.get(SESSION_COOKIE));
     expect(session?.sub).toBe(adminA.id);
@@ -313,6 +313,6 @@ describe("límite de intentos de acceso", () => {
     expect((blocked as { error: string }).error).toMatch(/Demasiados intentos/);
 
     await prisma.loginThrottle.deleteMany({ where: { key: { in: [`email:${a.owner.email}`, `ip:${jar.ip}`] } } });
-    expect(await redirectOf(attempt("otra clave nueva"))).toBe("/dashboard");
+    expect(await redirectOf(attempt("otra clave nueva"))).toBe("/hoy");
   });
 });

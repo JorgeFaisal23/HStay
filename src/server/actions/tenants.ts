@@ -12,6 +12,7 @@ import type { ActionResult } from "@/lib/action-result";
 import { canEmailLinks } from "@/server/auth/links";
 import {
   leaseData as buildLease,
+  lockUnit,
   parseDateInput,
   readLeaseTerms,
   unitAvailabilityError,
@@ -95,8 +96,22 @@ export async function createTenant(
     : await unusablePasswordHash();
 
   // Perfil, contrato y estado de la unidad se guardan juntos: si algo falla
-  // no queda un inquilino a medias ni una unidad ocupada sin contrato.
-  const tenant = await db.$transaction(async (tx) => {
+  // no queda un inquilino a medias ni una unidad ocupada sin contrato. La
+  // disponibilidad se vuelve a validar bajo el candado de la unidad: otra alta
+  // simultánea (contrato o reserva) pudo ocuparla después de la primera
+  // comprobación.
+  const result = await db.$transaction(async (tx) => {
+    if (terms) {
+      await lockUnit(tx, unitId);
+      const unavailable = await unitAvailabilityError(
+        tx,
+        unitId,
+        parseDateInput(terms.startDate),
+        parseDateInput(terms.endDate),
+      );
+      if (unavailable) return { error: unavailable };
+    }
+
     const created = await tx.user.create({
       data: {
         organizationId: orgId,
@@ -120,8 +135,10 @@ export async function createTenant(
       });
     }
 
-    return created;
+    return { tenant: created };
   });
+  if ("error" in result) return { error: result.error };
+  const { tenant } = result;
 
   await logAction(db, session.sub, "Alta de inquilino", "User", tenant.id, tenant.name);
 
@@ -137,6 +154,7 @@ export async function createTenant(
   revalidatePath("/inquilinos");
   revalidatePath("/edificios");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   redirect(
     invite
       ? `/inquilinos/${tenant.id}?acceso=${invited ? "invitacion" : "pendiente"}`
