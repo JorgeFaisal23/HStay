@@ -1,6 +1,6 @@
 import type { OrgDb } from "@/lib/db/scoped";
 import { toNumber } from "@/lib/format";
-import { chargeableLeasesWhere } from "@/lib/payments";
+import { chargeableLeasesWhere, periodBounds } from "@/lib/payments";
 
 /** Cobros de renta de un periodo, agrupados por propiedad. */
 export async function getPaymentsBoard(db: OrgDb, period: string) {
@@ -46,7 +46,10 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
   ]);
 
   // Lo demás del dinero del mes y lo que falta para cerrarlo.
-  const [missingCharges, serviceCharges, deposits, servicesMissing] = await Promise.all([
+  const { start: monthStart, end: monthEnd } = periodBounds(period);
+  const monthLimit = new Date(monthEnd.getFullYear(), monthEnd.getMonth(), monthEnd.getDate() + 1);
+
+  const [missingCharges, serviceCharges, deposits, servicesMissing, repairs, pendingRepairExpenses] = await Promise.all([
     db.lease.count({ where: chargeableLeasesWhere(period) }),
     db.serviceCharge.aggregate({ where: { period }, _sum: { amount: true } }),
     db.lease.aggregate({
@@ -55,6 +58,12 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
       _count: true,
     }),
     db.serviceAccount.count({ where: { active: true, charges: { none: { period } } } }),
+    // Reparaciones del mes: aprobadas cuentan como gasto; las pendientes se avisan.
+    db.expense.aggregate({
+      where: { status: "APPROVED", spentOn: { gte: monthStart, lt: monthLimit } },
+      _sum: { amount: true },
+    }),
+    db.expense.count({ where: { status: "PENDING" } }),
   ]);
 
   const groups = new Map<
@@ -146,6 +155,10 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
     openCharges: charges.filter((c) => c.status !== "PAID").length,
     /** Gasto en servicios capturado del mes. */
     servicesExpense: toNumber(serviceCharges._sum.amount ?? 0),
+    /** Gastos de reparación aprobados del mes. */
+    repairsExpense: toNumber(repairs._sum.amount ?? 0),
+    /** Gastos de reparación por aprobar (de cualquier mes). */
+    pendingRepairExpenses,
     /** Cuentas de servicio activas sin monto del mes. */
     servicesMissing,
     /**

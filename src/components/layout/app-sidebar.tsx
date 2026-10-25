@@ -16,6 +16,7 @@ import {
   Users,
   Users2,
   BarChart3,
+  Wrench,
 } from "lucide-react";
 import {
   Sidebar,
@@ -51,6 +52,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/dashboard", label: "Resumen", icon: LayoutDashboard },
   { href: "/edificios", label: "Propiedades", icon: Building2 },
   { href: "/calendario", label: "Calendario", icon: CalendarRange },
+  { href: "/tareas", label: "Tareas", icon: Wrench },
   { href: "/servicios", label: "Servicios", icon: Receipt },
   { href: "/pagos", label: "Cobros", icon: Banknote },
   { href: "/inquilinos", label: "Inquilinos", icon: Users },

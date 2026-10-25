@@ -41,6 +41,7 @@ la cuenta de la plataforma:
 | `dueno@demo.mx` | Rentas del Valle (`demo`, Premium) | Arrendador | Todo, incluida la marca y el equipo |
 | `admin@demo.mx` | Rentas del Valle | Administrativo | Propiedades, servicios, cobros e inquilinos |
 | `consulta@demo.mx` | Rentas del Valle | Consulta | **Solo lectura**: resumen y calendario |
+| `operacion@demo.mx` | Rentas del Valle | Operación | Solo **sus tareas** de limpieza y reparación (`/operacion`), pensado para celular |
 | `inquilino@demo.mx` | Rentas del Valle | Inquilino | Portal con su contrato, pagos y servicios |
 | `dueno2@demo.mx` | Casa Norte (`demo2`, gratuito) | Arrendador | Lo mismo, sobre sus propios datos |
 | `inquilino2@demo.mx` | Casa Norte | Inquilino | Portal |

@@ -1,8 +1,11 @@
 import type {
   BookingSource,
   ChargeStatus,
+  ExpenseStatus,
   LeaseStatus,
   ProofStatus,
+  TaskKind,
+  TaskStatus,
   Role,
   ServiceType,
   SplitMode,
@@ -50,6 +53,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   OWNER: "Arrendador",
   ADMIN: "Administrativo",
   VIEWER: "Consulta",
+  OPERATIONS: "Operación",
   TENANT: "Inquilino",
 };
 
@@ -58,6 +62,7 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   OWNER: "Acceso total, incluida la marca y el equipo",
   ADMIN: "Gestiona propiedades, servicios y cobros",
   VIEWER: "Solo puede consultar el calendario",
+  OPERATIONS: "Ve y cierra las limpiezas y reparaciones que se le asignan",
   TENANT: "Entra al portal a ver su contrato y sus pagos",
 };
 
@@ -137,6 +142,37 @@ export const PROOF_STATUS_LABELS: Record<ProofStatus, string> = {
 
 export const PROOF_STATUS_TONES: Record<ProofStatus, Tone> = {
   SUBMITTED: "info",
+  APPROVED: "success",
+  REJECTED: "danger",
+};
+
+// ------------------------------------------------------------------ operación
+
+export const TASK_KIND_LABELS: Record<TaskKind, string> = {
+  CLEANING: "Limpieza",
+  REPAIR: "Reparación",
+};
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  OPEN: "Por hacer",
+  DONE: "Hecha",
+  CANCELLED: "Cancelada",
+};
+
+export const TASK_STATUS_TONES: Record<TaskStatus, Tone> = {
+  OPEN: "warning",
+  DONE: "success",
+  CANCELLED: "neutral",
+};
+
+export const EXPENSE_STATUS_LABELS: Record<ExpenseStatus, string> = {
+  PENDING: "Por aprobar",
+  APPROVED: "Aprobado",
+  REJECTED: "Rechazado",
+};
+
+export const EXPENSE_STATUS_TONES: Record<ExpenseStatus, Tone> = {
+  PENDING: "warning",
   APPROVED: "success",
   REJECTED: "danger",
 };

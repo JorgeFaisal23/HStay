@@ -25,6 +25,42 @@ export async function getTodayData(db: OrgDb, now = new Date()) {
   const windowEnd = addDays(today, LOOKAHEAD_DAYS);
   const period = periodKey(now);
 
+  const [tasks, expenses] = await Promise.all([
+    // Tareas abiertas (y las limpiezas de reservas de la ventana, aunque ya se
+    // hayan hecho, para no volver a pedirlas).
+    db.task.findMany({
+      where: {
+        OR: [{ status: "OPEN" }, { kind: "CLEANING", booking: { checkOut: { gte: today, lt: windowEnd } } }],
+      },
+      select: {
+        id: true,
+        kind: true,
+        status: true,
+        title: true,
+        bookingId: true,
+        dueDate: true,
+        createdAt: true,
+        assignee: { select: { id: true, name: true } },
+        reportedBy: { select: { name: true, role: true } },
+        unit: { select: unitSelect },
+      },
+    }),
+    db.expense.findMany({
+      where: { status: "PENDING" },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        concept: true,
+        amount: true,
+        spentOn: true,
+        receiptUrl: true,
+        createdBy: { select: { name: true } },
+        unit: { select: unitSelect },
+        task: { select: { id: true, doneNotes: true, donePhotoUrl: true } },
+      },
+    }),
+  ]);
+
   const [proofs, overdue, missing, bookings, moveIns, expiring, serviceAccounts, counts] = await Promise.all([
     // Sin la imagen: el diálogo de revisión la pide a /comprobantes/{id}/imagen.
     db.paymentProof.findMany({
@@ -137,6 +173,48 @@ export async function getTodayData(db: OrgDb, now = new Date()) {
         ...place(l.unit),
         tenantName: l.tenant.name,
         dueDate: chargeDueDate(period, l.paymentDay),
+      })),
+      cleaningTasks: tasks
+        .filter((t) => t.kind === "CLEANING" && t.bookingId)
+        .map((t) => ({
+          bookingId: t.bookingId!,
+          status: t.status,
+          assigneeId: t.assignee?.id ?? null,
+          assigneeName: t.assignee?.name ?? null,
+        })),
+      lateCleanings: tasks
+        .filter((t) => t.kind === "CLEANING" && t.status === "OPEN" && t.dueDate && t.dueDate < today)
+        .map((t) => ({
+          ...place(t.unit),
+          id: t.id,
+          title: t.title,
+          dueDate: t.dueDate!,
+          assigneeId: t.assignee?.id ?? null,
+          assigneeName: t.assignee?.name ?? null,
+        })),
+      repairs: tasks
+        .filter((t) => t.kind === "REPAIR" && t.status === "OPEN")
+        .map((t) => ({
+          ...place(t.unit),
+          id: t.id,
+          title: t.title,
+          reportedAt: t.createdAt,
+          reporterName: t.reportedBy?.name ?? null,
+          reporterIsTenant: t.reportedBy?.role === "TENANT",
+          assigneeId: t.assignee?.id ?? null,
+          assigneeName: t.assignee?.name ?? null,
+        })),
+      pendingExpenses: expenses.map((e) => ({
+        ...place(e.unit),
+        id: e.id,
+        concept: e.concept,
+        amount: toNumber(e.amount),
+        spentOn: e.spentOn,
+        createdByName: e.createdBy?.name ?? null,
+        hasReceipt: e.receiptUrl !== null,
+        notes: e.task?.doneNotes ?? null,
+        taskId: e.task?.id ?? null,
+        hasDonePhoto: Boolean(e.task?.donePhotoUrl),
       })),
       bookings: bookings.map((b) => ({
         ...place(b.unit),

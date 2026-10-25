@@ -31,7 +31,9 @@ import {
   resetStaffAccess,
   setStaffActive,
   type AccessResult,
+  type StaffRole,
 } from "@/server/actions/team";
+import { ROLE_LABELS } from "@/lib/labels";
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -119,6 +121,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
           <NativeSelect id="staff-role" name="role" defaultValue="ADMIN">
             <option value="ADMIN">Administrativo: propiedades, servicios, cobros e inquilinos</option>
             <option value="VIEWER">Consulta: solo resumen y calendario</option>
+            <option value="OPERATIONS">Operación: solo sus tareas de limpieza y reparación</option>
           </NativeSelect>
         </Field>
         <FormError message={state.error} />
@@ -133,10 +136,12 @@ function InviteForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+const STAFF_ROLE_OPTIONS: StaffRole[] = ["ADMIN", "VIEWER", "OPERATIONS"];
+
 export function StaffRowActions({
   member,
 }: {
-  member: { id: string; name: string; email: string; role: "ADMIN" | "VIEWER"; active: boolean };
+  member: { id: string; name: string; email: string; role: StaffRole; active: boolean };
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -166,18 +171,16 @@ export function StaffRowActions({
           }
         />
         <DropdownMenuContent align="end">
-          {member.active ? (
-            <DropdownMenuItem
-              onClick={() =>
-                run(
-                  () => changeStaffRole(member.id, member.role === "ADMIN" ? "VIEWER" : "ADMIN"),
-                  "Rol actualizado.",
-                )
-              }
-            >
-              {member.role === "ADMIN" ? "Cambiar a Consulta" : "Cambiar a Administrativo"}
-            </DropdownMenuItem>
-          ) : null}
+          {member.active
+            ? STAFF_ROLE_OPTIONS.filter((role) => role !== member.role).map((role) => (
+                <DropdownMenuItem
+                  key={role}
+                  onClick={() => run(() => changeStaffRole(member.id, role), "Rol actualizado.")}
+                >
+                  Cambiar a {ROLE_LABELS[role]}
+                </DropdownMenuItem>
+              ))
+            : null}
           <DropdownMenuItem
             onClick={() =>
               run(

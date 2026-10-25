@@ -77,9 +77,9 @@ export default async function ReportsPage() {
               tone="brand"
             />
             <StatCard
-              label="Gasto en servicios"
+              label="Gastos"
               value={<Amount value={data.totals.expenses} compact />}
-              hint="Agua, luz, internet y mantenimiento"
+              hint="Servicios y reparaciones aprobadas"
               icon={Receipt}
             />
             <StatCard
@@ -125,7 +125,7 @@ export default async function ReportsPage() {
               <CardHeader>
                 <CardTitle>En qué se va el gasto</CardTitle>
                 <CardDescription>
-                  Distribución por tipo de servicio.
+                  Distribución por tipo de servicio y reparaciones aprobadas.
                 </CardDescription>
               </CardHeader>
               <CardContent>

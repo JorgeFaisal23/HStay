@@ -152,6 +152,7 @@ Escala base de 4 px (la de Tailwind). Los espaciados son fijos por contexto:
 
 - **Panel:** menú lateral colapsable + encabezado fijo de 56 px (`h-14`) + contenido a todo el ancho. Ver [`(dashboard)/layout.tsx`](src/app/(dashboard)/layout.tsx).
 - **Portal:** sin menú lateral. Contenido centrado en `max-w-4xl` sobre `bg-muted/30`, y navegación en píldoras. Ver [`(portal)/portal/layout.tsx`](src/app/(portal)/portal/layout.tsx).
+- **Operación:** como el portal, pero en `max-w-2xl` y con tarjetas de una tarea cada una (unidad, dirección, para cuándo y "Marcar como hecha"). Usa la misma [`PortalNav`](src/components/layout/portal-nav.tsx) con sus propios enlaces. Ver [`(operacion)/operacion/layout.tsx`](src/app/(operacion)/operacion/layout.tsx).
 - **Formularios:** `max-w-2xl`, una columna en móvil y como máximo dos en escritorio.
 - **Acceso:** dos columnas en `lg`. A la izquierda el panel de marca (`bg-primary`); a la derecha el formulario en `max-w-sm`.
 
@@ -242,6 +243,10 @@ Antes de crear algo, revisa esta tabla. Los primitivos de `src/components/ui/` s
 | Mostrar un pendiente que se resuelve ahí mismo | Fila de `ul.divide-y` como en [`/hoy`](src/app/(dashboard)/hoy/page.tsx): `StatusBadge` + título; propiedad · persona en `text-xs text-muted-foreground`; fecha relativa (`deadlineLabel` o `relativeDay`); botón `outline` de 36 px con su texto visible | Avisos sin acción o botones que solo muestran el icono en celular |
 | Capturar la foto de un comprobante | [`ReceiptPicker`](src/components/payments/receipt-picker.tsx) (cámara o archivo, comprime en el navegador, vista previa) | `<input type="file">` suelto |
 | Revisar un comprobante del inquilino | [`ReviewProofDialog`](src/components/payments/review-proof-dialog.tsx): foto, datos declarados, monto editable con aviso si cambia; "Aprobar y registrar pago" es la acción `default`; rechazar pide motivo y usa `destructive` | Aprobar sin ver la foto o rechazar sin explicar |
+| Asignar quién hace una tarea | [`AssignTaskDialog`](src/components/tasks/assign-task-dialog.tsx) (Operación primero en la lista) | Escribir el nombre a mano |
+| Cerrar una tarea | [`CompleteTaskDialog`](src/components/tasks/complete-task-dialog.tsx): limpieza con foto opcional; reparación con foto, costo y, si costó, comprobante | Marcar hecha sin evidencia |
+| Aprobar un gasto de reparación | [`ReviewExpenseDialog`](src/components/tasks/review-expense-dialog.tsx), con el mismo patrón que `ReviewProofDialog` | Sumar gastos sin revisión |
+| Decir para cuándo es una tarea | `dueLabel` de `format.ts` ("para hoy", "en 3 días") | "Para en 3 días" |
 | Mostrar cuánto del plan se usa | [`PlanUsage`](src/components/shared/plan-usage.tsx) (lee `PLAN_LIMITS`) | Límites escritos a mano en la pantalla |
 | Explicar una lista vacía | [`EmptyState`](src/components/shared/empty-state.tsx): por qué está vacía y qué hacer | Tabla en blanco o "Sin datos" |
 | Capturar un dato | `Field` + `Input` / `NativeSelect` / `Textarea` | Etiquetas sin `htmlFor` |

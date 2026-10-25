@@ -71,6 +71,8 @@ model Organization {
   rentCharges       RentCharge[]
   rentPayments      RentPayment[]
   paymentProofs     PaymentProof[]
+  tasks             Task[]
+  expenses          Expense[]
   bookings          Booking[]
   airbnbConnections AirbnbConnection[]
   auditLogs         AuditLog[]
@@ -83,6 +85,7 @@ enum Role {
   OWNER // arrendador
   ADMIN // personal administrativo
   VIEWER // solo lectura: consulta del calendario
+  OPERATIONS // personal de campo: ve y cierra las tareas que se le asignan
   TENANT // inquilino o huésped
 }
 
@@ -117,6 +120,12 @@ model User {
   /// Comprobantes que envió (inquilino) y que revisó (equipo).
   proofsSubmitted  PaymentProof[] @relation("ProofSubmittedBy")
   proofsReviewed   PaymentProof[] @relation("ProofReviewedBy")
+  /// Tareas de operación: asignadas, reportadas y cerradas por esta persona.
+  tasksAssigned    Task[]         @relation("TaskAssignee")
+  tasksReported    Task[]         @relation("TaskReporter")
+  tasksCompleted   Task[]         @relation("TaskCompleter")
+  expensesCreated  Expense[]      @relation("ExpenseCreatedBy")
+  expensesReviewed Expense[]      @relation("ExpenseReviewedBy")
 
   @@index([organizationId, role])
 }
@@ -198,7 +207,14 @@ model Unit {
   bedrooms       Int          @default(1)
   bathrooms      Int          @default(1)
   sizeM2         Float?
+  /// Renta mensual que se propone al hacer un contrato.
   baseRent       Decimal      @db.Decimal(12, 2)
+  /// Tarifas de estancia corta. El total sugerido de una reserva se arma por
+  /// bloques (meses de 30 noches, semanas de 7, noches sueltas); ver
+  /// src/lib/rates.ts. Nulas si la unidad no se renta así.
+  nightlyRate    Decimal?     @db.Decimal(12, 2)
+  weeklyRate     Decimal?     @db.Decimal(12, 2)
+  monthlyRate    Decimal?     @db.Decimal(12, 2)
   description    String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -207,6 +223,8 @@ model Unit {
   bookings         Booking[]
   serviceAccounts  ServiceAccount[]
   airbnbConnection AirbnbConnection?
+  tasks            Task[]
+  expenses         Expense[]
 
   @@unique([buildingId, code])
   @@index([buildingId])
@@ -458,9 +476,98 @@ model Booking {
   notes          String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  /// Limpieza programada para la salida de esta estancia.
+  cleaningTask   Task?
 
   @@index([unitId, checkIn, checkOut])
   @@index([organizationId, checkIn])
+}
+
+// ---------------------------------------------------------------- Operación
+
+enum TaskKind {
+  CLEANING // limpieza tras la salida de un huésped
+  REPAIR // reparación o mantenimiento
+}
+
+enum TaskStatus {
+  OPEN // por hacer (con o sin responsable)
+  DONE
+  CANCELLED
+}
+
+/// Tarea de operación. Una limpieza nace de una reserva (`bookingId`) y se
+/// cancela si la reserva se cancela; una reparación la reporta el equipo o el
+/// inquilino. Las fotos son data URL, como los comprobantes.
+model Task {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  kind           TaskKind
+  status         TaskStatus   @default(OPEN)
+  unitId         String
+  unit           Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  bookingId      String?      @unique
+  booking        Booking?     @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  title          String
+  description    String?
+  /// Para cuándo: la salida del huésped en una limpieza.
+  dueDate        DateTime?
+  assigneeId     String?
+  assignee       User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  reportedById   String?
+  reportedBy     User?        @relation("TaskReporter", fields: [reportedById], references: [id], onDelete: SetNull)
+  reportPhotoUrl String?
+  doneAt         DateTime?
+  doneById       String?
+  doneBy         User?        @relation("TaskCompleter", fields: [doneById], references: [id], onDelete: SetNull)
+  donePhotoUrl   String?
+  doneNotes      String?
+  cancelReason   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  /// Gasto que generó al cerrarse (reparación con costo).
+  expense Expense?
+
+  @@index([organizationId, status])
+  @@index([assigneeId, status])
+  @@index([unitId])
+}
+
+enum ExpenseStatus {
+  PENDING // por aprobar
+  APPROVED
+  REJECTED
+}
+
+/// Gasto de una unidad (hoy: el costo de una reparación). Solo cuenta en
+/// Cobros, Reportes y el CSV de gastos cuando el administrador lo aprueba.
+model Expense {
+  id              String        @id @default(cuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  unitId          String
+  unit            Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  taskId          String?       @unique
+  task            Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  concept         String
+  amount          Decimal       @db.Decimal(12, 2)
+  /// Día del gasto; define a qué mes pertenece.
+  spentOn         DateTime
+  receiptUrl      String?
+  status          ExpenseStatus @default(PENDING)
+  createdById     String?
+  createdBy       User?         @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  reviewedById    String?
+  reviewedBy      User?         @relation("ExpenseReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([organizationId, status])
+  @@index([organizationId, spentOn])
 }
 
 enum ConnectionStatus {

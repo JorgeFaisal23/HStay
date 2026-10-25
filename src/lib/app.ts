@@ -33,7 +33,7 @@ export const APP = {
   description:
     "Plataforma para administrar arrendamientos, servicios, cobros y reservas de corta estancia.",
   /** Se mantiene a mano junto a la versión de package.json. */
-  version: "0.9.0",
+  version: "0.10.0",
   /** Sitio público del producto. Vacío mientras no exista. */
   url: env(process.env.NEXT_PUBLIC_APP_URL, ""),
   /**
@@ -47,5 +47,5 @@ export const APP = {
 /** Inicial que usa el distintivo cuando no hay logo propio del producto. */
 export const APP_INITIAL = APP.name.charAt(0).toUpperCase();
 
-/** Texto corto para pies de página y menús: "HStay 0.9.0". */
+/** Texto corto para pies de página y menús: "HStay 0.10.0". */
 export const APP_VERSION_LABEL = `${APP.name} ${APP.version}`;

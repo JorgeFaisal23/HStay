@@ -128,12 +128,13 @@ export default async function PaymentsPage({
             </div>
             <dl className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border p-3">
-                <dt className="text-muted-foreground text-xs">Gastos de servicios</dt>
+                <dt className="text-muted-foreground text-xs">Gastos del mes</dt>
                 <dd className="mt-1 text-lg">
-                  <Amount value={board.servicesExpense} />
+                  <Amount value={board.servicesExpense + board.repairsExpense} />
                 </dd>
                 <dd className="text-muted-foreground text-xs text-pretty">
-                  Recibos capturados del mes.{" "}
+                  Servicios <Amount value={board.servicesExpense} className="font-normal" /> · reparaciones aprobadas{" "}
+                  <Amount value={board.repairsExpense} className="font-normal" />.{" "}
                   <Link href={`/servicios?mes=${period}`} className="underline">
                     Ver servicios
                   </Link>
@@ -158,6 +159,7 @@ export default async function PaymentsPage({
           period={period}
           missingCharges={board.missingCharges}
           pendingProofs={board.pendingProofs}
+          pendingExpenses={board.pendingRepairExpenses}
           openCharges={board.openCharges}
           overdueCount={board.overdueCount}
           servicesMissing={board.servicesMissing}
@@ -292,6 +294,7 @@ function MonthCloseCard({
   period,
   missingCharges,
   pendingProofs,
+  pendingExpenses,
   openCharges,
   overdueCount,
   servicesMissing,
@@ -299,6 +302,7 @@ function MonthCloseCard({
   period: string;
   missingCharges: number;
   pendingProofs: number;
+  pendingExpenses: number;
   openCharges: number;
   overdueCount: number;
   servicesMissing: number;
@@ -323,6 +327,17 @@ function MonthCloseCard({
           : pendingProofs === 1
             ? "1 comprobante de inquilino por revisar"
             : `${pendingProofs} comprobantes de inquilinos por revisar`,
+    },
+    {
+      id: "expenses",
+      done: pendingExpenses === 0,
+      label:
+        pendingExpenses === 0
+          ? "No hay gastos de reparación por aprobar"
+          : pendingExpenses === 1
+            ? "1 gasto de reparación por aprobar"
+            : `${pendingExpenses} gastos de reparación por aprobar`,
+      href: pendingExpenses > 0 ? "/tareas" : undefined,
     },
     {
       id: "collections",

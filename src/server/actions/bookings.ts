@@ -154,12 +154,21 @@ export async function cancelBooking(bookingId: string): Promise<ActionResult> {
     return { error: "Esta reserva ya no está confirmada." };
   }
 
-  await db.booking.update({ where: { id: bookingId }, data: { status: "CANCELLED" } });
+  // La limpieza de esa salida ya no hace falta: se cancela con la reserva.
+  await db.$transaction(async (tx) => {
+    await tx.booking.update({ where: { id: bookingId }, data: { status: "CANCELLED" } });
+    await tx.task.updateMany({
+      where: { bookingId, status: "OPEN" },
+      data: { status: "CANCELLED", cancelReason: "Se canceló la reserva" },
+    });
+  });
   await logAction(db, session.sub, "Cancelación de reserva", "Booking", bookingId, booking.guestName);
 
   revalidatePath("/calendario");
   revalidatePath(`/unidades/${booking.unitId}`);
   revalidatePath("/dashboard");
   revalidatePath("/hoy");
+  revalidatePath("/tareas");
+  revalidatePath("/operacion");
   return { ok: true };
 }

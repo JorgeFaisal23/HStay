@@ -9,6 +9,26 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 
 ## [Sin publicar]
 
+## [0.10.0] - 2026-10-25
+
+### Añadido
+- **Rol Operación** (`OPERATIONS`): personal de limpieza y mantenimiento con cuenta propia (ocupa un usuario contratado). Solo entra a `/operacion` ("Mis tareas"): ve las tareas que tiene asignadas con unidad, dirección y para cuándo, y las marca como hechas desde el celular. No ve cobros ni datos de inquilinos. Se da de alta desde Equipo; cuenta demo `operacion@demo.mx`.
+- **Tareas** (`/tareas` y "Hoy"): limpiezas ligadas a la salida de cada reserva (se programan y asignan desde "Hoy"; si la reserva se cancela, la limpieza también) y reparaciones que reporta el equipo o el inquilino. Cada una con responsable; "Hoy" muestra "Responsable: …" y un grupo nuevo de Mantenimiento con reparaciones, limpiezas atrasadas y gastos por aprobar.
+- **Reportar un problema** desde el portal del inquilino (`/portal/reportes`), con foto y seguimiento: Recibido, En atención, Resuelto.
+- **Gastos de reparación**: al cerrar una reparación con costo (foto y comprobante obligatorios) nace un gasto de la unidad por aprobar. El administrador lo aprueba (puede ajustar el monto) o lo rechaza con motivo. Aprobado, cuenta en "Dinero del mes" de Cobros, en Reportes (gasto y rentabilidad por propiedad) y en el CSV de gastos; "Antes de cerrar el mes" avisa los pendientes.
+- **Tarifas de estancia por noche, semana y mes** por unidad. El total de una reserva se sugiere por bloques (cada 30 noches con la mensual, cada 7 con la semanal y el resto por noche; si falta una tarifa se usa la siguiente más chica) y se muestra el desglose ("1 semana + 3 noches = $12,600"). El total sigue siendo editable.
+- Pruebas: `permissions.test.ts` (todos los roles), `rates.test.ts`, `tasks.int.test.ts`.
+
+### Cambiado
+- `baseRent` es siempre la renta mensual de contrato. La migración `stay_rates` copia la renta de las unidades de renta corta (que era por noche) a la nueva tarifa por noche; su "Renta mensual" conviene revisarla a mano.
+- No se puede eliminar una unidad o propiedad con tareas o gastos registrados.
+- Equipo permite elegir y cambiar entre Administrativo, Consulta y Operación.
+
+### Seguridad
+- Operación solo cierra y ve fotos de las tareas que tiene asignadas; una tarea ajena responde como inexistente. Las fotos y comprobantes se sirven desde `/operacion/archivos/{tipo}/{id}` con esa misma regla (los comprobantes de gastos, solo al equipo).
+- El inquilino reporta solo sobre la unidad de su contrato o estancia: la unidad no la elige él.
+- Migración `operations_tasks_expenses`: agrega el valor `OPERATIONS` al rol, las tablas `Task` y `Expense` y un CHECK de monto positivo; no toca datos existentes.
+
 ## [0.9.0] - 2026-10-25
 
 ### Añadido

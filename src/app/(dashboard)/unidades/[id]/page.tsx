@@ -101,7 +101,11 @@ export default async function UnitPage({
 
       <PageHeader
         title={`Unidad ${unit.code}`}
-        description={`${UNIT_TYPE_LABELS[unit.type]} en ${unit.building.name} · ${money(unit.baseRent)}${isShortTerm ? " por noche" : " al mes"}.`}
+        description={`${UNIT_TYPE_LABELS[unit.type]} en ${unit.building.name} · ${
+          isShortTerm && unit.rates.nightly !== null
+            ? `${money(unit.rates.nightly)} por noche`
+            : `${money(unit.baseRent)} al mes`
+        }.`}
         action={
           editable ? (
             <div className="flex flex-wrap gap-2">
@@ -126,6 +130,9 @@ export default async function UnitPage({
                   bathrooms: unit.bathrooms,
                   sizeM2: unit.sizeM2,
                   baseRent: unit.baseRent,
+                  nightlyRate: unit.rates.nightly,
+                  weeklyRate: unit.rates.weekly,
+                  monthlyRate: unit.rates.monthly,
                   description: unit.description,
                 }}
               />
@@ -182,14 +189,32 @@ export default async function UnitPage({
                 </div>
               ) : null}
 
-              <div className="bg-muted/50 rounded-lg p-4">
-                <p className="text-muted-foreground text-xs">
-                  {isShortTerm ? "Tarifa por noche" : "Renta mensual"}
-                </p>
-                <p className="mt-0.5 text-2xl">
-                  <Amount value={unit.baseRent} />
-                </p>
-              </div>
+              <dl className="bg-muted/50 grid grid-cols-2 gap-3 rounded-lg p-4 sm:grid-cols-4">
+                <div>
+                  <dt className="text-muted-foreground text-xs">Renta mensual</dt>
+                  <dd className="mt-0.5 text-lg">
+                    <Amount value={unit.baseRent} />
+                  </dd>
+                </div>
+                {(
+                  [
+                    ["Por noche", unit.rates.nightly],
+                    ["Por semana", unit.rates.weekly],
+                    ["Por mes (estancia)", unit.rates.monthly],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-muted-foreground text-xs">{label}</dt>
+                    <dd className="mt-0.5 text-lg">
+                      {value === null ? (
+                        <span className="text-muted-foreground text-sm">Sin tarifa</span>
+                      ) : (
+                        <Amount value={value} />
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </CardContent>
           </Card>
 
@@ -319,7 +344,7 @@ export default async function UnitPage({
                   {editable ? (
                     <NewBookingDialog
                       unitId={unit.id}
-                      units={[{ id: unit.id, label: unit.code, nightlyRate: unit.baseRent }]}
+                      units={[{ id: unit.id, label: unit.code, rates: unit.rates }]}
                     />
                   ) : null}
                 </div>

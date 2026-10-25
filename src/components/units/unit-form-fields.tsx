@@ -17,8 +17,17 @@ export type UnitDefaults = {
   bathrooms?: number;
   sizeM2?: number | null;
   baseRent?: number;
+  nightlyRate?: number | null;
+  weeklyRate?: number | null;
+  monthlyRate?: number | null;
   description?: string | null;
 };
+
+const STAY_RATES = [
+  { name: "nightlyRate", label: "Por noche", placeholder: "1200" },
+  { name: "weeklyRate", label: "Por semana", placeholder: "7000" },
+  { name: "monthlyRate", label: "Por mes", placeholder: "22000" },
+] as const;
 
 const TYPES: UnitType[] = ["ROOM", "APARTMENT", "STUDIO", "COMMERCIAL"];
 const STATUSES: UnitStatus[] = [
@@ -127,10 +136,10 @@ export function UnitFormFields({
       </div>
 
       <Field
-        label="Renta"
+        label="Renta mensual"
         htmlFor="baseRent"
         required
-        hint="Mensual para arrendamiento; por noche si es renta corta."
+        hint="La que se propone al hacer un contrato. Si la unidad solo se renta por noche, deja 0."
       >
         <Input
           id="baseRent"
@@ -144,6 +153,33 @@ export function UnitFormFields({
           className="tabular-nums"
         />
       </Field>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">
+          Tarifas de estancia corta{" "}
+          <span className="text-muted-foreground font-normal">(opcional)</span>
+        </legend>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {STAY_RATES.map((rate) => (
+            <Field key={rate.name} label={rate.label} htmlFor={rate.name}>
+              <Input
+                id={rate.name}
+                name={rate.name}
+                type="number"
+                min={0}
+                step={50}
+                defaultValue={defaults[rate.name] ?? ""}
+                placeholder={rate.placeholder}
+                className="tabular-nums"
+              />
+            </Field>
+          ))}
+        </div>
+        <p className="text-muted-foreground text-xs text-pretty">
+          El total de una reserva se sugiere por bloques: cada 30 noches con la tarifa mensual, cada 7
+          con la semanal y el resto por noche. Deja vacías las que no uses.
+        </p>
+      </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-4">
         <Field label="Piso" htmlFor="floor">

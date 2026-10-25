@@ -203,6 +203,7 @@ async function seedRentasDelValle(orgId: string, passwordHash: string) {
       { email: "dueno@demo.mx", name: "Carlos Márquez", role: "OWNER" as const, phone: "55 1000 2000" },
       { email: "admin@demo.mx", name: "Daniela Ruiz", role: "ADMIN" as const, phone: "55 1000 3000" },
       { email: "consulta@demo.mx", name: "Despacho Contable Nava", role: "VIEWER" as const, phone: "55 1000 4000" },
+      { email: "operacion@demo.mx", name: "Rosa Jiménez", role: "OPERATIONS" as const, phone: "55 1000 5000" },
     ].map((u) =>
       prisma.user.create({ data: { ...u, passwordHash, organizationId: orgId } }),
     ),
@@ -248,7 +249,17 @@ async function seedRentasDelValle(orgId: string, passwordHash: string) {
           bedrooms: seed.bedrooms,
           bathrooms: seed.bathrooms,
           sizeM2: seed.sizeM2,
-          baseRent: seed.baseRent,
+          // En las unidades de renta corta `seed.baseRent` es la tarifa por
+          // noche; su renta mensual de contrato y sus tarifas de semana y mes
+          // salen de ella para que la demo muestre el cálculo por bloques.
+          ...(seed.status === "SHORT_TERM"
+            ? {
+                baseRent: seed.baseRent * 22,
+                nightlyRate: seed.baseRent,
+                weeklyRate: seed.baseRent * 6,
+                monthlyRate: seed.baseRent * 22,
+              }
+            : { baseRent: seed.baseRent }),
           description: seed.description,
         },
       });
@@ -529,6 +540,25 @@ async function seedRentasDelValle(orgId: string, passwordHash: string) {
   }
   console.log(`Reservas: ${bookingCount} en ${shortTermCodes.length} unidades conectadas`);
 
+  // ---------------------------------------------------------- mantenimiento
+  // Una reparación reportada por una inquilina, sin responsable todavía, para
+  // que "Hoy" y Tareas muestren el flujo completo.
+  const maria = await prisma.user.findFirst({ where: { organizationId: orgId, email: "inquilino@demo.mx" } });
+  const unit101 = await prisma.unit.findFirst({ where: { organizationId: orgId, buildingId: reforma.id, code: "101" } });
+  if (maria && unit101) {
+    await prisma.task.create({
+      data: {
+        organizationId: orgId,
+        kind: "REPAIR",
+        unitId: unit101.id,
+        title: "Gotea la llave del lavabo",
+        description: "Gotea aunque esté cerrada; desde hace una semana.",
+        reportedById: maria.id,
+      },
+    });
+    console.log("Tareas: 1 reparación por asignar");
+  }
+
 }
 
 /**
@@ -642,6 +672,9 @@ async function seedCasaNorte(orgId: string, passwordHash: string) {
 async function main() {
   console.log("Limpiando datos anteriores…");
   await prisma.auditLog.deleteMany();
+  await prisma.expense.deleteMany();
+  await prisma.task.deleteMany();
+  await prisma.paymentProof.deleteMany();
   await prisma.rentPayment.deleteMany();
   await prisma.rentCharge.deleteMany();
   await prisma.lease.deleteMany();
@@ -677,7 +710,7 @@ async function main() {
       brandName: "Rentas del Valle",
       plan: "PREMIUM",
       // Dueño, 2 de equipo y 9 inquilinos activos: 12 de 15.
-      maxUsers: 15,
+      maxUsers: 16,
       primaryColor: "#0F766E",
       radius: "SOFT",
       fontFamily: "Inter",
@@ -725,6 +758,7 @@ async function main() {
   console.log("    dueno@demo.mx        Arrendador");
   console.log("    admin@demo.mx        Administrativo");
   console.log("    consulta@demo.mx     Solo lectura (calendario)");
+  console.log("    operacion@demo.mx    Operación (sus tareas)");
   console.log("    inquilino@demo.mx    Inquilino (portal)");
   console.log("  Casa Norte (slug demo2, gratuito)");
   console.log("    dueno2@demo.mx       Arrendador");

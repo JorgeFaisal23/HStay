@@ -1,4 +1,5 @@
 import type { OrgDb } from "@/lib/db/scoped";
+import type { StayRates } from "@/lib/rates";
 import { toNumber, periodKey } from "@/lib/format";
 
 /**
@@ -192,6 +193,7 @@ export async function getUnitDetail(db: OrgDb, unitId: string) {
     bathrooms: unit.bathrooms,
     sizeM2: unit.sizeM2,
     baseRent: toNumber(unit.baseRent),
+    rates: stayRatesOf(unit),
     description: unit.description,
     building: {
       id: unit.building.id,
@@ -275,14 +277,27 @@ export async function getBookableUnits(db: OrgDb) {
   const units = await db.unit.findMany({
     where: { status: { not: "MAINTENANCE" } },
     orderBy: [{ building: { name: "asc" } }, { code: "asc" }],
-    select: { id: true, code: true, baseRent: true, status: true, building: { select: { name: true } } },
+    select: {
+      id: true,
+      code: true,
+      nightlyRate: true,
+      weeklyRate: true,
+      monthlyRate: true,
+      building: { select: { name: true } },
+    },
   });
 
   return units.map((unit) => ({
     id: unit.id,
     label: `${unit.building.name} · ${unit.code}`,
-    // La renta base de una unidad de corta estancia es su tarifa por noche;
-    // para las demás no hay tarifa que sugerir.
-    nightlyRate: unit.status === "SHORT_TERM" ? toNumber(unit.baseRent) : 0,
+    rates: stayRatesOf(unit),
   }));
+}
+
+type Decimalish = { toString(): string } | null;
+
+/** Tarifas de estancia de una unidad como números (nulas si no hay). */
+export function stayRatesOf(unit: { nightlyRate: Decimalish; weeklyRate: Decimalish; monthlyRate: Decimalish }): StayRates {
+  const value = (rate: Decimalish) => (rate === null ? null : toNumber(rate));
+  return { nightly: value(unit.nightlyRate), weekly: value(unit.weeklyRate), monthly: value(unit.monthlyRate) };
 }

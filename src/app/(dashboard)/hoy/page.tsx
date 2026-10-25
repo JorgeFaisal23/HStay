@@ -9,6 +9,9 @@ import { NewBookingDialog } from "@/components/bookings/new-booking-dialog";
 import { RegisterPaymentDialog } from "@/components/payments/payment-row-actions";
 import { GenerateChargesButton } from "@/components/payments/generate-charges-button";
 import { ReviewProofDialog } from "@/components/payments/review-proof-dialog";
+import { AssignTaskDialog, type StaffOption } from "@/components/tasks/assign-task-dialog";
+import { ReviewExpenseDialog } from "@/components/tasks/review-expense-dialog";
+import { getAssignableStaff } from "@/lib/queries/tasks";
 import {
   Card,
   CardContent,
@@ -32,7 +35,11 @@ export const metadata: Metadata = { title: "Hoy" };
  */
 export default async function TodayPage() {
   const { db } = await requireOrgUser(["OWNER", "ADMIN"]);
-  const [data, bookableUnits] = await Promise.all([getTodayData(db), getBookableUnits(db)]);
+  const [data, bookableUnits, staff] = await Promise.all([
+    getTodayData(db),
+    getBookableUnits(db),
+    getAssignableStaff(db),
+  ]);
 
   const groups = TODAY_GROUPS.map((group) => ({
     ...group,
@@ -67,7 +74,7 @@ export default async function TodayPage() {
           <EmptyState
             icon={CheckCircle2}
             title="Nada pendiente por ahora"
-            description="No hay comprobantes por revisar, rentas vencidas, cargos por generar, llegadas, salidas, contratos por vencer ni servicios sin monto. Esta lista se actualiza sola en cuanto algo cambia."
+            description="No hay comprobantes ni gastos por revisar, rentas vencidas, cargos por generar, reparaciones, llegadas, salidas, contratos por vencer ni servicios sin monto. Esta lista se actualiza sola en cuanto algo cambia."
             actions={
               <ButtonLink href="/calendario" variant="outline">
                 <CalendarRange className="size-4" aria-hidden />
@@ -91,7 +98,7 @@ export default async function TodayPage() {
             <CardContent>
               <ul className="divide-y">
                 {group.items.map((item) => (
-                  <TodayRow key={item.key} item={item} />
+                  <TodayRow key={item.key} item={item} staff={staff} />
                 ))}
               </ul>
             </CardContent>
@@ -114,7 +121,7 @@ function dateText(item: TodayItem) {
   return `${text} · ${shortDate(item.date)}`;
 }
 
-function TodayRow({ item }: { item: TodayItem }) {
+function TodayRow({ item, staff }: { item: TodayItem; staff: StaffOption[] }) {
   return (
     <li className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 space-y-1">
@@ -125,6 +132,7 @@ function TodayRow({ item }: { item: TodayItem }) {
         <p className="text-muted-foreground text-xs text-pretty">
           {item.place}
           {item.person ? ` · ${item.person.role}: ${item.person.name}` : ""}
+          {item.assignee !== undefined ? ` · Responsable: ${item.assignee ?? "sin asignar"}` : ""}
         </p>
         <p className="text-xs text-pretty">
           {item.date ? <time dateTime={item.date.toISOString()}>{dateText(item)}</time> : dateText(item)}
@@ -138,13 +146,13 @@ function TodayRow({ item }: { item: TodayItem }) {
             <Amount value={item.amount} tone={item.action.kind === "review" ? undefined : "danger"} />
           </span>
         ) : null}
-        <RowAction action={item.action} />
+        <RowAction action={item.action} staff={staff} />
       </div>
     </li>
   );
 }
 
-function RowAction({ action }: { action: TodayAction }) {
+function RowAction({ action, staff }: { action: TodayAction; staff: StaffOption[] }) {
   switch (action.kind) {
     case "payment":
       return (
@@ -160,6 +168,10 @@ function RowAction({ action }: { action: TodayAction }) {
       );
     case "review":
       return <ReviewProofDialog proof={action.proof} />;
+    case "assign":
+      return <AssignTaskDialog target={action.target} staff={staff} />;
+    case "expense":
+      return <ReviewExpenseDialog expense={action.expense} />;
     case "generate":
       return <GenerateChargesButton period={action.period} count={action.count} variant="outline" />;
     case "link":

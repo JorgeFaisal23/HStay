@@ -17,14 +17,30 @@ import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { logout } from "@/app/login/actions";
 
-const LINKS = [
+export type NavLink = { href: string; label: string };
+
+const TENANT_LINKS: NavLink[] = [
   { href: "/portal", label: "Mi vivienda" },
   { href: "/portal/pagos", label: "Mis pagos" },
   { href: "/portal/servicios", label: "Servicios" },
+  { href: "/portal/reportes", label: "Reportes" },
   { href: "/portal/cuenta", label: "Mi cuenta" },
 ];
 
-export function PortalNav({ userName }: { userName: string }) {
+/**
+ * Navegación de las vistas sin menú lateral: el portal del inquilino y "Mis
+ * tareas" de Operación. En celular el menú de la cuenta hace de navegación.
+ */
+export function PortalNav({
+  userName,
+  links = TENANT_LINKS,
+  roleLabel = "Inquilino",
+}: {
+  userName: string;
+  links?: NavLink[];
+  roleLabel?: string;
+}) {
+  const LINKS = links;
   const pathname = usePathname();
 
   return (
@@ -61,7 +77,7 @@ export function PortalNav({ userName }: { userName: string }) {
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuLabel className="font-normal">
             <p className="text-sm font-medium">{userName}</p>
-            <p className="text-muted-foreground text-xs">Inquilino</p>
+            <p className="text-muted-foreground text-xs">{roleLabel}</p>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           {/* En celular el menú también hace de navegación. */}

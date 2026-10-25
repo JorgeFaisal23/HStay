@@ -113,18 +113,20 @@ async function deletionBlocker(
       ? { OR: [{ buildingId: target.buildingId }, { unit }] }
       : { unitId: target.unitId };
 
-  const [activeLeases, upcomingBookings, leases, bookings, serviceCharges] = await Promise.all([
+  const [activeLeases, upcomingBookings, leases, bookings, serviceCharges, tasks, expenses] = await Promise.all([
     db.lease.count({ where: { unit, status: "ACTIVE" } }),
     db.booking.count({ where: { unit, status: "CONFIRMED", checkOut: { gte: new Date() } } }),
     db.lease.count({ where: { unit } }),
     db.booking.count({ where: { unit } }),
     db.serviceCharge.count({ where: { serviceAccount: accounts } }),
+    db.task.count({ where: { unit } }),
+    db.expense.count({ where: { unit } }),
   ]);
 
   if (activeLeases > 0) return "Tiene contratos vigentes. Termínalos antes de eliminar.";
   if (upcomingBookings > 0) return "Tiene reservas próximas. Cancélalas antes de eliminar.";
-  if (leases + bookings + serviceCharges > 0) {
-    return "Tiene historial de contratos, reservas o servicios capturados, y eliminarla lo borraría. Puedes editarla en su lugar.";
+  if (leases + bookings + serviceCharges + tasks + expenses > 0) {
+    return "Tiene historial de contratos, reservas, servicios, tareas o gastos, y eliminarla lo borraría. Puedes editarla en su lugar.";
   }
   return null;
 }
@@ -152,6 +154,14 @@ export async function deleteBuilding(buildingId: string): Promise<ActionResult> 
 
 // ------------------------------------------------------------------ unidades
 
+/** Tarifa de estancia opcional: vacía se guarda como "sin tarifa". */
+const stayRate = z.coerce
+  .number()
+  .min(0, "Las tarifas no pueden ser negativas.")
+  .max(99_999_999)
+  .nullable()
+  .transform((value) => (value === 0 ? null : value));
+
 const unitSchema = z.object({
   buildingId: z.string().min(1, "Elige la propiedad."),
   code: z.string().trim().min(1, "Escribe el identificador de la unidad."),
@@ -163,6 +173,9 @@ const unitSchema = z.object({
   bathrooms: z.coerce.number().int().min(0).max(20),
   sizeM2: z.coerce.number().min(0).max(10000).optional(),
   baseRent: z.coerce.number().min(0, "La renta no puede ser negativa."),
+  nightlyRate: stayRate,
+  weeklyRate: stayRate,
+  monthlyRate: stayRate,
   description: z.string().trim().optional(),
 });
 
@@ -178,6 +191,9 @@ function readUnitForm(formData: FormData) {
     bathrooms: formData.get("bathrooms") || 1,
     sizeM2: formData.get("sizeM2") || undefined,
     baseRent: formData.get("baseRent"),
+    nightlyRate: formData.get("nightlyRate") || null,
+    weeklyRate: formData.get("weeklyRate") || null,
+    monthlyRate: formData.get("monthlyRate") || null,
     description: formData.get("description") || undefined,
   };
 }

@@ -19,12 +19,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field, FormError, NativeSelect } from "@/components/shared/form-field";
 import { localDateInput } from "@/components/leases/lease-terms-fields";
 import { createBooking } from "@/server/actions/bookings";
+import { money } from "@/lib/format";
+import { quoteLabel, quoteStay, type StayRates } from "@/lib/rates";
 
 export type BookableUnit = {
   id: string;
   label: string;
-  /** Tarifa por noche, para sugerir el total de la estancia. */
-  nightlyRate: number;
+  /** Tarifas de estancia, para sugerir el total (ver src/lib/rates.ts). */
+  rates: StayRates;
 };
 
 function nightsBetween(checkIn: string, checkOut: string) {
@@ -64,7 +66,8 @@ export function NewBookingDialog({
 
   const unit = units.find((u) => u.id === selected);
   const nights = nightsBetween(checkIn, checkOut);
-  const suggested = unit ? String(nights * unit.nightlyRate) : "";
+  const quote = unit ? quoteStay(nights, unit.rates) : null;
+  const suggested = quote ? String(quote.total) : "";
 
   function reset() {
     setError(undefined);
@@ -181,7 +184,13 @@ export function NewBookingDialog({
                 label="Total de la estancia"
                 htmlFor="totalAmount"
                 required
-                hint={nights > 0 ? `${nights} ${nights === 1 ? "noche" : "noches"}.` : undefined}
+                hint={
+                  nights === 0
+                    ? undefined
+                    : quote
+                      ? `${nights} ${nights === 1 ? "noche" : "noches"}: ${quoteLabel(quote)} = ${money(quote.total)}.`
+                      : `${nights} ${nights === 1 ? "noche" : "noches"}. La unidad no tiene tarifas de estancia: escribe el total.`
+                }
               >
                 <Input
                   id="totalAmount"

@@ -1,7 +1,8 @@
 import type { OrgDb } from "@/lib/db/scoped";
 import { csvAmount, toCsv } from "@/lib/csv";
 import { periodLabel, toNumber } from "@/lib/format";
-import { CHARGE_STATUS_LABELS, SERVICE_TYPE_LABELS } from "@/lib/labels";
+import { CHARGE_STATUS_LABELS, EXPENSE_STATUS_LABELS, SERVICE_TYPE_LABELS } from "@/lib/labels";
+import { periodBounds } from "@/lib/payments";
 import { TODAY_GROUPS } from "@/lib/today";
 import { getTodayData } from "@/lib/queries/today";
 
@@ -87,8 +88,19 @@ async function chargesCsv(db: OrgDb, period: string) {
   );
 }
 
-/** Recibos de servicios capturados del periodo. */
+/** Recibos de servicios capturados del periodo y reparaciones aprobadas. */
 async function expensesCsv(db: OrgDb, period: string) {
+  const { start, end } = periodBounds(period);
+  const repairs = await db.expense.findMany({
+    where: { status: "APPROVED", spentOn: { gte: start, lt: new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1) } },
+    orderBy: { spentOn: "asc" },
+    select: {
+      concept: true,
+      amount: true,
+      spentOn: true,
+      unit: { select: { code: true, building: { select: { name: true } } } },
+    },
+  });
   const charges = await db.serviceCharge.findMany({
     where: { period },
     orderBy: { serviceAccount: { type: "asc" } },
@@ -112,22 +124,38 @@ async function expensesCsv(db: OrgDb, period: string) {
   });
   return toCsv(
     ["Propiedad", "Unidad", "Servicio", "Proveedor", "Contrato", "Periodo", "Monto", "Incluido en la renta", "Vence", "Estado", "Pagado el"],
-    charges.map((c) => {
-      const account = c.serviceAccount;
-      return [
-        account.building?.name ?? account.unit?.building.name,
-        account.unit ? account.unit.code : "Todo el edificio",
-        SERVICE_TYPE_LABELS[account.type],
-        account.providerName,
-        account.contractNumber,
-        periodLabel(c.period),
-        csvAmount(toNumber(c.amount)),
-        account.includedInRent ? "Sí" : "No",
-        c.dueDate,
-        CHARGE_STATUS_LABELS[c.status],
-        c.paidAt,
-      ];
-    }),
+    [
+      ...charges.map((c) => {
+        const account = c.serviceAccount;
+        return [
+          account.building?.name ?? account.unit?.building.name,
+          account.unit ? account.unit.code : "Todo el edificio",
+          SERVICE_TYPE_LABELS[account.type],
+          account.providerName,
+          account.contractNumber,
+          periodLabel(c.period),
+          csvAmount(toNumber(c.amount)),
+          account.includedInRent ? "Sí" : "No",
+          c.dueDate,
+          CHARGE_STATUS_LABELS[c.status],
+          c.paidAt,
+        ];
+      }),
+      // Las reparaciones aprobadas van como gasto de su unidad.
+      ...repairs.map((r) => [
+        r.unit.building.name,
+        r.unit.code,
+        r.concept,
+        null,
+        null,
+        periodLabel(period),
+        csvAmount(toNumber(r.amount)),
+        "No",
+        r.spentOn,
+        EXPENSE_STATUS_LABELS.APPROVED,
+        null,
+      ]),
+    ],
   );
 }
 

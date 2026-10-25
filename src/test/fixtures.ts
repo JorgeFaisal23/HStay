@@ -127,6 +127,8 @@ export async function deleteOrgFixtures(...fixtures: (OrgFixture | undefined)[])
   if (ids.length === 0) return;
   const where = { organizationId: { in: ids } };
   await prisma.auditLog.deleteMany({ where });
+  await prisma.expense.deleteMany({ where });
+  await prisma.task.deleteMany({ where });
   await prisma.paymentProof.deleteMany({ where });
   await prisma.rentPayment.deleteMany({ where });
   await prisma.rentCharge.deleteMany({ where });

@@ -137,6 +137,13 @@ export function relativeDay(days: number) {
   return days > 0 ? `en ${dayCount(days)}` : `hace ${dayCount(Math.abs(days))}`;
 }
 
+/** Para cuándo es algo por hacer: "para hoy", "para mañana", "en 3 días", "atrasada 2 días". */
+export function dueLabel(days: number) {
+  if (days === 0) return "para hoy";
+  if (days === 1) return "para mañana";
+  return days > 1 ? `en ${dayCount(days)}` : `atrasada ${dayCount(Math.abs(days))}`;
+}
+
 export function initials(name: string) {
   return name
     .split(" ")

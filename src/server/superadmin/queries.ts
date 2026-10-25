@@ -60,7 +60,7 @@ export async function getOrganizationDetail(id: string) {
       maxUsers: true,
       createdAt: true,
       users: {
-        where: { role: { in: ["OWNER", "ADMIN", "VIEWER"] } },
+        where: { role: { in: ["OWNER", "ADMIN", "VIEWER", "OPERATIONS"] } },
         orderBy: [{ role: "asc" }, { createdAt: "asc" }],
         select: {
           id: true,
@@ -103,9 +103,9 @@ export async function getOrganizationDetail(id: string) {
     })),
     /** Cuentas activas por tipo: cada una ocupa un usuario contratado. */
     activeUsers: {
-      total: activeOf(["OWNER", "ADMIN", "VIEWER", "TENANT"]),
+      total: activeOf(["OWNER", "ADMIN", "VIEWER", "OPERATIONS", "TENANT"]),
       owner: activeOf(["OWNER"]),
-      staff: activeOf(["ADMIN", "VIEWER"]),
+      staff: activeOf(["ADMIN", "VIEWER", "OPERATIONS"]),
       tenants: activeOf(["TENANT"]),
     },
     buildings: _count.buildings,
@@ -143,7 +143,7 @@ async function lockStatus(emails: string[]) {
   return locks;
 }
 
-export const SUPPORT_ROLES = ["OWNER", "ADMIN", "VIEWER", "TENANT"] as const satisfies readonly Role[];
+export const SUPPORT_ROLES = ["OWNER", "ADMIN", "VIEWER", "OPERATIONS", "TENANT"] as const satisfies readonly Role[];
 export type SupportRole = (typeof SUPPORT_ROLES)[number];
 
 /**

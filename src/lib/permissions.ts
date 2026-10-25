@@ -8,6 +8,9 @@ import type { Role } from "@/lib/auth/jwt";
 /** Rutas del panel administrativo a las que el rol VIEWER (solo lectura) puede entrar. */
 export const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/calendario", "/cuenta"];
 
+/** Vista del personal de operación ("Mis tareas"). Es lo único que ve ese rol. */
+export const OPERATIONS_PREFIX = "/operacion";
+
 /** Panel de la plataforma: solo para SUPERADMIN. */
 export const SUPERADMIN_PREFIX = "/superadmin";
 
@@ -44,6 +47,8 @@ export function canAccessPath(role: Role, pathname: string) {
 
   if (role === "TENANT") return under(pathname, "/portal");
   if (under(pathname, "/portal")) return false;
+  // Operación solo ve sus tareas: nada de cobros, inquilinos ni configuración.
+  if (role === "OPERATIONS") return under(pathname, OPERATIONS_PREFIX);
   if (role === "VIEWER") {
     return VIEWER_ALLOWED_PREFIXES.some((prefix) => under(pathname, prefix));
   }
@@ -59,5 +64,6 @@ export function canAccessPath(role: Role, pathname: string) {
 export function homePathFor(role: Role) {
   if (role === "SUPERADMIN") return SUPERADMIN_PREFIX;
   if (role === "TENANT") return "/portal";
+  if (role === "OPERATIONS") return OPERATIONS_PREFIX;
   return role === "VIEWER" ? "/dashboard" : "/hoy";
 }

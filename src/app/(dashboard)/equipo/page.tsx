@@ -18,6 +18,7 @@ import { UserQuotaNote } from "@/components/shared/user-quota-note";
 import { userQuota } from "@/server/user-quota";
 import { canManageOrganization } from "@/lib/permissions";
 import { InviteStaffDialog, StaffRowActions } from "./team-controls";
+import type { StaffRole } from "@/server/actions/team";
 
 export const metadata: Metadata = { title: "Equipo" };
 
@@ -27,7 +28,7 @@ export default async function TeamPage() {
 
   const [staff, logs, quota] = await Promise.all([
     db.user.findMany({
-      where: { role: { in: ["OWNER", "ADMIN", "VIEWER"] } },
+      where: { role: { in: ["OWNER", "ADMIN", "VIEWER", "OPERATIONS"] } },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
       select: {
         id: true,
@@ -112,7 +113,7 @@ export default async function TeamPage() {
                         id: member.id,
                         name: member.name,
                         email: member.email,
-                        role: member.role as "ADMIN" | "VIEWER",
+                        role: member.role as StaffRole,
                         active: member.active,
                       }}
                     />

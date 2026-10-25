@@ -20,12 +20,15 @@ export function ReceiptPicker({
   onProcessingChange,
   required = false,
   hint,
+  label = "Comprobante",
 }: {
   value: string | null;
   onChange: (dataUrl: string | null) => void;
   onProcessingChange?: (processing: boolean) => void;
   required?: boolean;
   hint: string;
+  /** Qué imagen es: "Comprobante", "Foto de cómo quedó"… */
+  label?: string;
 }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -42,7 +45,7 @@ export function ReceiptPicker({
     input.value = "";
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast.error("El comprobante debe ser una imagen.");
+      toast.error(`${label} debe ser una imagen.`);
       return;
     }
 
@@ -50,7 +53,7 @@ export function ReceiptPicker({
     try {
       const dataUrl = await compressImage(file);
       onChange(dataUrl);
-      toast.success(`Comprobante listo (${Math.round(dataUrlBytes(dataUrl) / 1024)} KB).`);
+      toast.success(`Imagen lista (${Math.round(dataUrlBytes(dataUrl) / 1024)} KB).`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo leer la imagen.");
     } finally {
@@ -61,7 +64,7 @@ export function ReceiptPicker({
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">
-        Comprobante{" "}
+        {label}{" "}
         <span className="text-muted-foreground font-normal">{required ? "*" : "(opcional)"}</span>
       </p>
 
@@ -90,7 +93,7 @@ export function ReceiptPicker({
           <div className="bg-muted overflow-hidden rounded-lg border">
             {/* Vista previa de un data URL: next/image no aporta nada aquí. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={value} alt="Vista previa del comprobante" className="max-h-56 w-full object-contain" />
+            <img src={value} alt={`Vista previa: ${label.toLowerCase()}`} className="max-h-56 w-full object-contain" />
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={() => fileRef.current?.click()}>

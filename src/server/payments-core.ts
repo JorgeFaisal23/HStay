@@ -20,11 +20,19 @@ export type Tx = Parameters<Parameters<OrgDb["$transaction"]>[0]>[0];
 const RECEIPT_PATTERN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 const MAX_RECEIPT_CHARS = 1_400_000; // ~1 MB de imagen ya en base64
 
+/**
+ * Por qué la imagen (data URL) no sirve, o null si sirve. `what` nombra la
+ * imagen en el mensaje: "El comprobante", "La foto"…
+ */
+export function imageError(dataUrl: string, what = "El comprobante") {
+  if (dataUrl.length > MAX_RECEIPT_CHARS) return `${what} es demasiado pesad${what.startsWith("La ") ? "a" : "o"}.`;
+  if (!RECEIPT_PATTERN.test(dataUrl)) return `${what} debe ser una imagen.`;
+  return null;
+}
+
 /** Por qué la imagen no sirve como comprobante, o null si sirve. */
 export function receiptError(receipt: string) {
-  if (receipt.length > MAX_RECEIPT_CHARS) return "El comprobante es demasiado pesado.";
-  if (!RECEIPT_PATTERN.test(receipt)) return "El comprobante debe ser una imagen.";
-  return null;
+  return imageError(receipt, "El comprobante");
 }
 
 /**

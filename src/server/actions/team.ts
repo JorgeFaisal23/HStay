@@ -18,7 +18,8 @@ import type { ActionResult } from "@/lib/action-result";
 
 export type AccessResult = ActionResult & { delivery?: AccessDelivery };
 
-const STAFF_ROLES = ["ADMIN", "VIEWER"] as const;
+export type StaffRole = "ADMIN" | "VIEWER" | "OPERATIONS";
+const STAFF_ROLES = ["ADMIN", "VIEWER", "OPERATIONS"] as const satisfies readonly StaffRole[];
 const staffRole = z.enum(STAFF_ROLES);
 
 /** Un miembro del equipo de esta arrendadora (nunca el dueño ni un inquilino). */
@@ -73,7 +74,7 @@ export async function inviteStaff(_prev: AccessResult, formData: FormData): Prom
   return { ok: true, delivery };
 }
 
-export async function changeStaffRole(userId: string, role: "ADMIN" | "VIEWER"): Promise<ActionResult> {
+export async function changeStaffRole(userId: string, role: StaffRole): Promise<ActionResult> {
   const { session, db } = await requireOrgUserAction(["OWNER"]);
   if (!staffRole.safeParse(role).success) return { error: "Rol no válido." };
 

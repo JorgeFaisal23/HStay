@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildTodayItems, type TodayInput } from "@/lib/today";
-import { relativeDay } from "@/lib/format";
+import { dueLabel, relativeDay } from "@/lib/format";
 
 const now = new Date(2026, 9, 15, 10); // 15 oct 2026, 10:00
 const day = (d: number, month = 9) => new Date(2026, month, d, 12);
@@ -16,6 +16,10 @@ const empty: TodayInput = {
   moveIns: [],
   expiringLeases: [],
   servicesMissing: [],
+  cleaningTasks: [],
+  lateCleanings: [],
+  repairs: [],
+  pendingExpenses: [],
 };
 
 describe("buildTodayItems", () => {
@@ -168,5 +172,6 @@ describe("comprobantes por revisar", () => {
 describe("relativeDay", () => {
   it("habla como persona", () => {
     expect([0, 1, -1, 3, -4].map(relativeDay)).toEqual(["hoy", "mañana", "ayer", "en 3 días", "hace 4 días"]);
+    expect([0, 1, 3, -1].map(dueLabel)).toEqual(["para hoy", "para mañana", "en 3 días", "atrasada 1 día"]);
   });
 });

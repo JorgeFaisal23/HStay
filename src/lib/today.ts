@@ -22,7 +22,7 @@ export const LEASE_WARNING_DAYS = 60;
 /** A partir de cuántos días un contrato por vencer pasa a urgente. */
 const LEASE_URGENT_DAYS = 30;
 
-export type TodayGroup = "cobros" | "estancias" | "contratos" | "servicios";
+export type TodayGroup = "cobros" | "estancias" | "mantenimiento" | "contratos" | "servicios";
 
 export const TODAY_GROUPS: { id: TodayGroup; title: string; description: string }[] = [
   { id: "cobros", title: "Cobros", description: "Comprobantes por revisar, rentas vencidas y cargos del mes por generar." },
@@ -30,6 +30,11 @@ export const TODAY_GROUPS: { id: TodayGroup; title: string; description: string 
     id: "estancias",
     title: "Llegadas, salidas y limpieza",
     description: `Lo que pasa en tus unidades en los próximos ${LOOKAHEAD_DAYS} días.`,
+  },
+  {
+    id: "mantenimiento",
+    title: "Mantenimiento",
+    description: "Reparaciones por asignar o en curso, limpiezas atrasadas y gastos por aprobar.",
   },
   { id: "contratos", title: "Contratos", description: "Contratos que vencen pronto: renueva o prepara la salida." },
   { id: "servicios", title: "Servicios", description: "Recibos del mes que aún no tienen monto." },
@@ -49,9 +54,30 @@ export type ProofToReview = {
   remaining: number;
 };
 
+/** Lo que necesita el diálogo de aprobación de un gasto. */
+export type ExpenseToReview = {
+  id: string;
+  concept: string;
+  place: string;
+  amount: number;
+  spentOn: Date;
+  createdByName: string | null;
+  hasReceipt: boolean;
+  notes: string | null;
+  taskId: string | null;
+  hasDonePhoto: boolean;
+};
+
+/** A qué se le asigna responsable: una tarea que ya existe o la limpieza de una reserva. */
+export type AssignTarget =
+  | { type: "task"; taskId: string; title: string; assigneeId: string | null }
+  | { type: "cleaning"; bookingId: string; title: string; assigneeId: string | null };
+
 export type TodayAction =
   | { kind: "payment"; chargeId: string; tenantName: string; amount: number; paidAmount: number }
   | { kind: "review"; proof: ProofToReview }
+  | { kind: "assign"; target: AssignTarget }
+  | { kind: "expense"; expense: ExpenseToReview }
   | { kind: "generate"; period: string; count: number }
   | { kind: "link"; href: string; label: string };
 
@@ -66,6 +92,11 @@ export type TodayItem = {
   place: string;
   /** Con quién es el asunto: inquilino, huésped… */
   person: { role: string; name: string } | null;
+  /**
+   * Responsable de hacerlo, en las tareas de operación: su nombre, null si
+   * aún no tiene, o undefined si el asunto no es una tarea.
+   */
+  assignee?: string | null;
   /** La fecha del asunto, o null si es de todo el periodo. */
   date: Date | null;
   /** Días de hoy a `date` (negativo: ya pasó). */
@@ -123,6 +154,32 @@ export type TodayInput = {
     guests: number;
     checkIn: Date;
     checkOut: Date;
+  })[];
+  /** Limpiezas programadas, por reserva: su responsable y si ya se hizo. */
+  cleaningTasks: { bookingId: string; status: "OPEN" | "DONE" | "CANCELLED"; assigneeId: string | null; assigneeName: string | null }[];
+  /** Limpiezas abiertas cuya salida ya pasó. */
+  lateCleanings: (Place & { id: string; title: string; dueDate: Date; assigneeId: string | null; assigneeName: string | null })[];
+  /** Reparaciones abiertas. */
+  repairs: (Place & {
+    id: string;
+    title: string;
+    reportedAt: Date;
+    reporterName: string | null;
+    reporterIsTenant: boolean;
+    assigneeId: string | null;
+    assigneeName: string | null;
+  })[];
+  /** Gastos de unidad por aprobar. */
+  pendingExpenses: (Place & {
+    id: string;
+    concept: string;
+    amount: number;
+    spentOn: Date;
+    createdByName: string | null;
+    hasReceipt: boolean;
+    notes: string | null;
+    taskId: string | null;
+    hasDonePhoto: boolean;
   })[];
   /** Contratos vigentes que empiezan en la ventana (entrega de la unidad). */
   moveIns: (Place & { id: string; tenantId: string; tenantName: string; startDate: Date })[];
@@ -249,6 +306,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
   }
 
   // ---------------------------------------------------------------- estancias
+  const cleaningByBooking = new Map(input.cleaningTasks.map((t) => [t.bookingId, t]));
   for (const booking of input.bookings) {
     if (inWindow(booking.checkIn)) {
       const nights = Math.max(1, daysBetween(booking.checkIn, booking.checkOut));
@@ -274,21 +332,114 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
       const turnover = input.bookings.some(
         (other) => other.id !== booking.id && other.unitId === booking.unitId && sameDay(other.checkIn, booking.checkOut),
       );
-      items.push({
-        key: `cleaning:${booking.id}`,
-        group: "estancias",
-        tone: turnover ? "warning" : "neutral",
-        status: "Limpieza",
-        title: `Sale ${booking.guestName}: prepara la unidad`,
-        place: placeLabel(booking),
-        person: { role: "Huésped", name: booking.guestName },
-        date: booking.checkOut,
-        days: dayOffset(booking.checkOut, today),
-        dateKind: "event",
-        note: turnover ? "Entra otro huésped el mismo día." : "No hay otra llegada ese día.",
-        action: { kind: "link", href: `/unidades/${booking.unitId}`, label: "Ver unidad" },
-      });
+      // Una limpieza ya hecha deja de ser asunto; si está programada, se ve
+      // su responsable.
+      const task = cleaningByBooking.get(booking.id);
+      if (task?.status !== "DONE") {
+        const planned = task?.status === "OPEN";
+        items.push({
+          key: `cleaning:${booking.id}`,
+          group: "estancias",
+          tone: turnover ? "warning" : "neutral",
+          status: "Limpieza",
+          title: `Sale ${booking.guestName}: prepara la unidad`,
+          place: placeLabel(booking),
+          person: { role: "Huésped", name: booking.guestName },
+          assignee: planned ? task.assigneeName : null,
+          date: booking.checkOut,
+          days: dayOffset(booking.checkOut, today),
+          dateKind: "event",
+          note: turnover ? "Entra otro huésped el mismo día." : "No hay otra llegada ese día.",
+          action: {
+            kind: "assign",
+            target: {
+              type: "cleaning",
+              bookingId: booking.id,
+              title: `Limpieza tras la salida de ${booking.guestName}`,
+              assigneeId: planned ? task.assigneeId : null,
+            },
+          },
+        });
+      }
     }
+  }
+
+  // ---------------------------------------------------------------- mantenimiento
+  for (const expense of input.pendingExpenses) {
+    items.push({
+      key: `expense:${expense.id}`,
+      group: "mantenimiento",
+      tone: "warning",
+      status: "Gasto por aprobar",
+      title: expense.concept,
+      place: placeLabel(expense),
+      person: expense.createdByName ? { role: "Cerró", name: expense.createdByName } : null,
+      date: expense.spentOn,
+      days: dayOffset(expense.spentOn, today),
+      dateKind: "event",
+      amount: expense.amount,
+      amountLabel: "Costo",
+      note: "No cuenta en tus gastos hasta que lo apruebes.",
+      action: {
+        kind: "expense",
+        expense: {
+          id: expense.id,
+          concept: expense.concept,
+          place: placeLabel(expense),
+          amount: expense.amount,
+          spentOn: expense.spentOn,
+          createdByName: expense.createdByName,
+          hasReceipt: expense.hasReceipt,
+          notes: expense.notes,
+          taskId: expense.taskId,
+          hasDonePhoto: expense.hasDonePhoto,
+        },
+      },
+    });
+  }
+
+  for (const repair of input.repairs) {
+    items.push({
+      key: `repair:${repair.id}`,
+      group: "mantenimiento",
+      tone: repair.assigneeId ? "info" : "warning",
+      status: repair.assigneeId ? "Reparación en curso" : "Reparación sin asignar",
+      title: repair.title,
+      place: placeLabel(repair),
+      person: repair.reporterName
+        ? { role: repair.reporterIsTenant ? "Reportó el inquilino" : "Reportó", name: repair.reporterName }
+        : null,
+      assignee: repair.assigneeName,
+      date: repair.reportedAt,
+      days: dayOffset(repair.reportedAt, today),
+      dateKind: "event",
+      datePrefix: "Reportada",
+      action: {
+        kind: "assign",
+        target: { type: "task", taskId: repair.id, title: repair.title, assigneeId: repair.assigneeId },
+      },
+    });
+  }
+
+  for (const cleaning of input.lateCleanings) {
+    items.push({
+      key: `late-cleaning:${cleaning.id}`,
+      group: "mantenimiento",
+      tone: "danger",
+      status: "Limpieza atrasada",
+      title: cleaning.title,
+      place: placeLabel(cleaning),
+      person: null,
+      assignee: cleaning.assigneeName,
+      date: cleaning.dueDate,
+      days: dayOffset(cleaning.dueDate, today),
+      dateKind: "deadline",
+      note: "La salida ya pasó y nadie la ha marcado como hecha.",
+      action: {
+        kind: "assign",
+        target: { type: "task", taskId: cleaning.id, title: cleaning.title, assigneeId: cleaning.assigneeId },
+      },
+    });
   }
 
   for (const lease of input.moveIns) {
@@ -351,11 +502,11 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
     });
   }
 
-  // Dentro de cada grupo: primero los comprobantes por revisar (se resuelven
-  // en un paso), después lo más antiguo o próximo; lo que no tiene fecha
+  // Dentro de cada grupo: primero los comprobantes y gastos por revisar (se
+  // resuelven en un paso), después lo más antiguo o próximo; lo que no tiene fecha
   // (todo el periodo) al final.
   const groupOrder = TODAY_GROUPS.map((g) => g.id);
-  const rank = (item: TodayItem) => (item.action.kind === "review" ? 0 : 1);
+  const rank = (item: TodayItem) => (item.action.kind === "review" || item.action.kind === "expense" ? 0 : 1);
   const time = (item: TodayItem) => item.date?.getTime() ?? Number.POSITIVE_INFINITY;
   return items.sort(
     (a, b) =>
