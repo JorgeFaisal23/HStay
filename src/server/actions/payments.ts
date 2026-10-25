@@ -7,10 +7,15 @@ import {
   chargeDueDate,
   chargeableLeasesWhere,
   computeChargeStatus,
-  remainingOf,
   toCents,
 } from "@/lib/payments";
-import type { OrgDb } from "@/lib/db/scoped";
+import {
+  chargeRemaining,
+  lockCharge,
+  receiptError,
+  recalcCharge,
+  refreshPayments,
+} from "@/server/payments-core";
 import { z } from "zod";
 import { logAction } from "@/server/actions/audit";
 import type { ActionResult } from "@/lib/action-result";
@@ -65,59 +70,6 @@ export async function generateMonthlyCharges(
   return { ok: true, created: leases.length };
 }
 
-/**
- * Formatos aceptados para el comprobante. El navegador siempre manda JPEG
- * (ver src/lib/images.ts); la lista es la red de seguridad del servidor.
- */
-const RECEIPT_PATTERN = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
-const MAX_RECEIPT_CHARS = 1_400_000; // ~1 MB de imagen ya en base64
-
-type Tx = Parameters<Parameters<OrgDb["$transaction"]>[0]>[0];
-
-/**
- * Recalcula el resumen del cargo a partir de sus pagos: suma, estado y datos
- * del último pago (los que muestran Cobros y el portal).
- */
-async function recalcCharge(tx: Tx, chargeId: string) {
-  const charge = await tx.rentCharge.findUniqueOrThrow({
-    where: { id: chargeId },
-    select: {
-      amount: true,
-      dueDate: true,
-      payments: {
-        orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
-        select: { amount: true, paidAt: true, method: true, reference: true, receiptUrl: true },
-      },
-    },
-  });
-  const paidCents = charge.payments.reduce((sum, p) => sum + toCents(toNumber(p.amount)), 0);
-  const last = charge.payments[0];
-  await tx.rentCharge.update({
-    where: { id: chargeId },
-    data: {
-      paidAmount: paidCents / 100,
-      status: computeChargeStatus({
-        amount: toNumber(charge.amount),
-        paid: paidCents / 100,
-        dueDate: charge.dueDate,
-      }),
-      paidAt: last?.paidAt ?? null,
-      method: last?.method ?? null,
-      reference: last?.reference ?? null,
-      receiptUrl: last?.receiptUrl ?? null,
-    },
-  });
-}
-
-function refreshPayments(tenantId: string) {
-  revalidatePath("/pagos");
-  revalidatePath("/dashboard");
-  revalidatePath("/hoy");
-  revalidatePath("/portal");
-  revalidatePath("/portal/pagos");
-  revalidatePath(`/inquilinos/${tenantId}`);
-}
-
 const paymentSchema = z.object({
   chargeId: z.string().min(1),
   amount: z.number().positive("El monto debe ser mayor a cero.").max(99_999_999),
@@ -132,9 +84,9 @@ const paymentSchema = z.object({
  *
  * Es la única forma de confirmar un pago y solo la usa el equipo (OWNER o
  * ADMIN). El comprobante es evidencia que adjunta quien confirma: subir una
- * imagen nunca marca un cargo como pagado. Si algún día el inquilino envía
- * comprobantes, quedan por revisar hasta que alguien del equipo llame a esta
- * acción.
+ * imagen nunca marca un cargo como pagado. Los comprobantes que envía el
+ * inquilino (src/server/actions/proofs.ts) quedan por revisar y, al
+ * aprobarlos, crean el pago por este mismo camino (`recalcCharge`).
  */
 export async function registerPayment(input: {
   chargeId: string;
@@ -153,23 +105,25 @@ export async function registerPayment(input: {
 
   const receipt = data.receiptUrl?.trim();
   if (receipt) {
-    if (receipt.length > MAX_RECEIPT_CHARS) return { error: "El comprobante es demasiado pesado." };
-    if (!RECEIPT_PATTERN.test(receipt)) return { error: "El comprobante debe ser una imagen." };
+    const invalid = receiptError(receipt);
+    if (invalid) return { error: invalid };
   }
 
   const charge = await db.rentCharge.findUnique({
     where: { id: data.chargeId },
-    select: { amount: true, paidAmount: true, lease: { select: { tenantId: true } } },
+    select: { lease: { select: { tenantId: true } } },
   });
   if (!charge) return { error: "No se encontró el cargo." };
 
-  const remaining = remainingOf(toNumber(charge.amount), toNumber(charge.paidAmount));
-  if (remaining === 0) return { error: "Este cargo ya está pagado." };
-  if (toCents(data.amount) > toCents(remaining)) {
-    return { error: `El monto excede lo que falta por pagar (${remaining.toFixed(2)}).` };
-  }
-
-  await db.$transaction(async (tx) => {
+  // Lo que falta se lee bajo el candado del cargo: otro pago o la aprobación
+  // de un comprobante simultáneos no deben sumar más que el cargo.
+  const result = await db.$transaction(async (tx) => {
+    await lockCharge(tx, data.chargeId);
+    const remaining = (await chargeRemaining(tx, data.chargeId)) ?? 0;
+    if (remaining === 0) return { error: "Este cargo ya está pagado." };
+    if (toCents(data.amount) > toCents(remaining)) {
+      return { error: `El monto excede lo que falta por pagar (${remaining.toFixed(2)}).` };
+    }
     await tx.rentPayment.create({
       data: {
         organizationId: orgId,
@@ -183,7 +137,10 @@ export async function registerPayment(input: {
       },
     });
     await recalcCharge(tx, data.chargeId);
+    return { remaining };
   });
+  if ("error" in result) return { error: result.error };
+  const { remaining } = result;
 
   await logAction(
     db,

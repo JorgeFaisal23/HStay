@@ -240,6 +240,8 @@ Antes de crear algo, revisa esta tabla. Los primitivos de `src/components/ui/` s
 | Listar datos tabulares | `Table` de [`ui/table.tsx`](src/components/ui/table.tsx), con `min-w-*` para el scroll horizontal | `<table>` a mano |
 | Listar elementos navegables | `ul.divide-y` con filas `rounded-lg hover:bg-accent/60 transition-colors` | Tablas para listas de tarjetas |
 | Mostrar un pendiente que se resuelve ahí mismo | Fila de `ul.divide-y` como en [`/hoy`](src/app/(dashboard)/hoy/page.tsx): `StatusBadge` + título; propiedad · persona en `text-xs text-muted-foreground`; fecha relativa (`deadlineLabel` o `relativeDay`); botón `outline` de 36 px con su texto visible | Avisos sin acción o botones que solo muestran el icono en celular |
+| Capturar la foto de un comprobante | [`ReceiptPicker`](src/components/payments/receipt-picker.tsx) (cámara o archivo, comprime en el navegador, vista previa) | `<input type="file">` suelto |
+| Revisar un comprobante del inquilino | [`ReviewProofDialog`](src/components/payments/review-proof-dialog.tsx): foto, datos declarados, monto editable con aviso si cambia; "Aprobar y registrar pago" es la acción `default`; rechazar pide motivo y usa `destructive` | Aprobar sin ver la foto o rechazar sin explicar |
 | Mostrar cuánto del plan se usa | [`PlanUsage`](src/components/shared/plan-usage.tsx) (lee `PLAN_LIMITS`) | Límites escritos a mano en la pantalla |
 | Explicar una lista vacía | [`EmptyState`](src/components/shared/empty-state.tsx): por qué está vacía y qué hacer | Tabla en blanco o "Sin datos" |
 | Capturar un dato | `Field` + `Input` / `NativeSelect` / `Textarea` | Etiquetas sin `htmlFor` |

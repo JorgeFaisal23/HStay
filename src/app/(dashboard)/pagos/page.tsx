@@ -24,7 +24,14 @@ import {
   recentPeriods,
   shortDate,
 } from "@/lib/format";
-import { CHARGE_STATUS_LABELS, CHARGE_STATUS_TONES } from "@/lib/labels";
+import {
+  CHARGE_STATUS_LABELS,
+  CHARGE_STATUS_TONES,
+  PROOF_STATUS_LABELS,
+  PROOF_STATUS_TONES,
+} from "@/lib/labels";
+import { remainingOf } from "@/lib/payments";
+import { ReviewProofDialog } from "@/components/payments/review-proof-dialog";
 import { PaymentsToolbar } from "./payments-toolbar";
 import { PaymentRowActions } from "@/components/payments/payment-row-actions";
 import { ReceiptBadge } from "@/components/payments/receipt-viewer";
@@ -150,6 +157,7 @@ export default async function PaymentsPage({
         <MonthCloseCard
           period={period}
           missingCharges={board.missingCharges}
+          pendingProofs={board.pendingProofs}
           openCharges={board.openCharges}
           overdueCount={board.overdueCount}
           servicesMissing={board.servicesMissing}
@@ -240,6 +248,22 @@ export default async function PaymentsPage({
                           subtitle={`Unidad ${charge.unitCode} · ${periodLabel(period)}`}
                         />
                       ) : null}
+                      {charge.pendingProof ? (
+                        <StatusBadge tone={PROOF_STATUS_TONES.SUBMITTED}>
+                          Comprobante {PROOF_STATUS_LABELS.SUBMITTED.toLowerCase()}
+                        </StatusBadge>
+                      ) : null}
+                      {editable && charge.pendingProof ? (
+                        <ReviewProofDialog
+                          proof={{
+                            ...charge.pendingProof,
+                            tenantName: charge.tenantName,
+                            periodName: periodLabel(period),
+                            place: `${building.name} · Unidad ${charge.unitCode}`,
+                            remaining: remainingOf(charge.amount, charge.paidAmount),
+                          }}
+                        />
+                      ) : null}
                       {editable ? (
                         <PaymentRowActions
                           chargeId={charge.id}
@@ -267,12 +291,14 @@ export default async function PaymentsPage({
 function MonthCloseCard({
   period,
   missingCharges,
+  pendingProofs,
   openCharges,
   overdueCount,
   servicesMissing,
 }: {
   period: string;
   missingCharges: number;
+  pendingProofs: number;
   openCharges: number;
   overdueCount: number;
   servicesMissing: number;
@@ -287,6 +313,16 @@ function MonthCloseCard({
           : missingCharges === 1
             ? "Falta generar 1 cargo de renta"
             : `Faltan generar ${missingCharges} cargos de renta`,
+    },
+    {
+      id: "proofs",
+      done: pendingProofs === 0,
+      label:
+        pendingProofs === 0
+          ? "No hay comprobantes por revisar"
+          : pendingProofs === 1
+            ? "1 comprobante de inquilino por revisar"
+            : `${pendingProofs} comprobantes de inquilinos por revisar`,
     },
     {
       id: "collections",

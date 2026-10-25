@@ -85,6 +85,12 @@ export async function getPortalData(db: OrgDb, userId: string) {
         method: true,
         reference: true,
         receiptUrl: true,
+        // El último comprobante que envió: si está en revisión o si lo rechazaron.
+        proofs: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { status: true, amount: true, rejectionReason: true, createdAt: true },
+        },
       },
     }),
   ]);
@@ -100,6 +106,14 @@ export async function getPortalData(db: OrgDb, userId: string) {
       method: c.method,
       reference: c.reference,
       receiptUrl: c.receiptUrl,
+      lastProof: c.proofs[0]
+        ? {
+            status: c.proofs[0].status,
+            amount: toNumber(c.proofs[0].amount),
+            rejectionReason: c.proofs[0].rejectionReason,
+            createdAt: c.proofs[0].createdAt,
+          }
+        : null,
     }));
 
   const nextCharge =

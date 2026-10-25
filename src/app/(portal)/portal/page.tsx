@@ -11,6 +11,7 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ButtonLink } from "@/components/shared/button-link";
+import { SubmitProofDialog } from "@/components/payments/submit-proof-dialog";
 import { Amount } from "@/components/shared/amount";
 import {
   Card,
@@ -26,6 +27,8 @@ import {
   BOOKING_SOURCE_LABELS,
   CHARGE_STATUS_LABELS,
   CHARGE_STATUS_TONES,
+  PROOF_STATUS_LABELS,
+  PROOF_STATUS_TONES,
   UNIT_TYPE_LABELS,
 } from "@/lib/labels";
 
@@ -169,13 +172,26 @@ export default async function PortalHomePage() {
                       className="block text-2xl tracking-tight"
                     />
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <StatusBadge
                       tone={CHARGE_STATUS_TONES[data.nextCharge.status]}
                     >
                       {CHARGE_STATUS_LABELS[data.nextCharge.status]}
                     </StatusBadge>
-                    <ButtonLink href="/portal/pagos" variant="outline" size="sm">
+                    {data.nextCharge.lastProof?.status === "SUBMITTED" ? (
+                      <StatusBadge tone={PROOF_STATUS_TONES.SUBMITTED}>
+                        Comprobante {PROOF_STATUS_LABELS.SUBMITTED.toLowerCase()}
+                      </StatusBadge>
+                    ) : (
+                      <SubmitProofDialog
+                        chargeId={data.nextCharge.id}
+                        periodName={periodLabel(data.nextCharge.period)}
+                        remaining={data.nextCharge.amount - data.nextCharge.paidAmount}
+                        resend={data.nextCharge.lastProof?.status === "REJECTED"}
+                        variant="default"
+                      />
+                    )}
+                    <ButtonLink href="/portal/pagos" variant="link" className="px-0">
                       Ver todos
                     </ButtonLink>
                   </div>

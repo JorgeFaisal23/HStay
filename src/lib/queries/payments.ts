@@ -22,6 +22,11 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
         method: true,
         reference: true,
         receiptUrl: true,
+        proofs: {
+          where: { status: "SUBMITTED" },
+          select: { id: true, amount: true, method: true, reference: true, paidOn: true },
+          take: 1,
+        },
         lease: {
           select: {
             id: true,
@@ -70,6 +75,14 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
         paidAt: Date | null;
         method: string | null;
         receiptUrl: string | null;
+        /** Comprobante del inquilino por revisar, si lo hay. */
+        pendingProof: {
+          id: string;
+          amount: number;
+          method: string;
+          reference: string | null;
+          paidOn: Date;
+        } | null;
       }[];
       total: number;
       collected: number;
@@ -102,6 +115,9 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
       paidAt: charge.paidAt,
       method: charge.method,
       receiptUrl: charge.receiptUrl,
+      pendingProof: charge.proofs[0]
+        ? { ...charge.proofs[0], amount: toNumber(charge.proofs[0].amount) }
+        : null,
     });
     group.total += amount;
     group.collected += paid;
@@ -124,6 +140,8 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
     activeLeases,
     /** Contratos que deberían tener cargo este mes y no lo tienen (los que crea "Generar cargos"). */
     missingCharges,
+    /** Comprobantes de inquilinos por revisar en los cargos del mes. */
+    pendingProofs: charges.filter((c) => c.proofs.length > 0).length,
     /** Cargos del mes sin liquidar. */
     openCharges: charges.filter((c) => c.status !== "PAID").length,
     /** Gasto en servicios capturado del mes. */

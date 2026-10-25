@@ -16,6 +16,7 @@ export const TENANT_MODELS: ReadonlySet<Prisma.ModelName> = new Set<Prisma.Model
   "Lease",
   "RentCharge",
   "RentPayment",
+  "PaymentProof",
   "Booking",
   "AirbnbConnection",
   "AuditLog",

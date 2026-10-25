@@ -9,6 +9,21 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 
 ## [Sin publicar]
 
+## [0.9.0] - 2026-10-25
+
+### Añadido
+- **Comprobantes por revisar**: el inquilino envía desde su portal (en "Mis pagos" o en la tarjeta del próximo cargo) el comprobante de un cargo, con monto, forma de pago, fecha, referencia y foto obligatoria. Enviarlo **no** paga el cargo: queda "Por revisar" en "Hoy" (primero en Cobros) y en la fila del cargo en Cobros. El equipo ve la foto, puede ajustar el monto y aprueba (se registra el pago) o rechaza con un motivo que el inquilino lee en su portal y puede reenviar. Modelo `PaymentProof` y migración `20261025220758_payment_proofs` (solo agrega una tabla).
+- "Antes de cerrar el mes" cuenta los comprobantes por revisar.
+- `ReceiptPicker`: captura de foto compartida por el registro de pago y el envío de comprobantes.
+
+### Cambiado
+- `registerPayment` valida lo que falta por pagar bajo un candado por cargo (el mismo que usa la aprobación de comprobantes), para que dos pagos simultáneos no rebasen el cargo.
+
+### Seguridad
+- Permiso nuevo para el inquilino, acotado: solo envía comprobantes de **sus** cargos (el filtro por inquilino va en la consulta, con el cliente con alcance de la arrendadora); no puede aprobar ni ver los de otros.
+- Como máximo un comprobante por revisar por cargo, garantizado también por un índice único parcial en la base; una aprobación se toma con una actualización condicionada, así no se registran dos pagos por el mismo comprobante.
+- La foto se sirve al equipo desde `/comprobantes/{id}/imagen` (solo OWNER/ADMIN de la arrendadora) en vez de incrustarla en las páginas.
+
 ## [0.8.0] - 2026-10-25
 
 ### Añadido

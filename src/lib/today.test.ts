@@ -10,6 +10,7 @@ const empty: TodayInput = {
   period: "2026-10",
   periodName: "Octubre 2026",
   overdueCharges: [],
+  proofs: [],
   missingCharges: [],
   bookings: [],
   moveIns: [],
@@ -123,6 +124,44 @@ describe("buildTodayItems", () => {
       now,
     );
     expect(items.map((i) => i.key)).toEqual(["charge:c1", "charge:c2", "arrival:b1", "services:b:2026-10"]);
+  });
+});
+
+describe("comprobantes por revisar", () => {
+  const sent = {
+    ...place,
+    id: "p1",
+    chargeId: "c1",
+    periodName: "Octubre 2026",
+    tenantName: "Ana López",
+    amount: 6500,
+    method: "Transferencia",
+    reference: "SPEI 99",
+    paidOn: day(14),
+    submittedAt: new Date(2026, 9, 14, 18),
+    remaining: 6500,
+  };
+  const overdue = { ...place, id: "c1", periodName: "Octubre 2026", dueDate: day(5), amount: 6500, paidAmount: 0, tenantId: "t1", tenantName: "Ana López" };
+
+  it("van primero en Cobros, como suceso ('ayer') y con lo que declara", () => {
+    const items = buildTodayItems({ ...empty, proofs: [sent], overdueCharges: [overdue] }, now);
+    expect(items.map((i) => i.key)).toEqual(["proof:p1", "charge:c1"]);
+    expect(items[0]).toMatchObject({
+      status: "Por revisar",
+      dateKind: "event",
+      datePrefix: "Enviado",
+      days: -1,
+      amount: 6500,
+      amountLabel: "Declara",
+      action: { kind: "review", proof: { id: "p1", remaining: 6500, place: "Torre Norte · Unidad 101" } },
+    });
+  });
+
+  it("el cargo vencido avisa que ya hay un comprobante", () => {
+    const [, charge] = buildTodayItems({ ...empty, proofs: [sent], overdueCharges: [overdue] }, now);
+    expect(charge.note).toMatch(/Envió un comprobante/);
+    const [alone] = buildTodayItems({ ...empty, overdueCharges: [overdue] }, now);
+    expect(alone.note).toBeUndefined();
   });
 });
 

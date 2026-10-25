@@ -1,6 +1,6 @@
 import type { OrgDb } from "@/lib/db/scoped";
 import { periodKey, periodLabel, toNumber } from "@/lib/format";
-import { chargeDueDate, chargeableLeasesWhere, startOfToday } from "@/lib/payments";
+import { chargeDueDate, chargeableLeasesWhere, remainingOf, startOfToday } from "@/lib/payments";
 import { buildTodayItems, LEASE_WARNING_DAYS, LOOKAHEAD_DAYS } from "@/lib/today";
 
 /**
@@ -25,7 +25,25 @@ export async function getTodayData(db: OrgDb, now = new Date()) {
   const windowEnd = addDays(today, LOOKAHEAD_DAYS);
   const period = periodKey(now);
 
-  const [overdue, missing, bookings, moveIns, expiring, serviceAccounts, counts] = await Promise.all([
+  const [proofs, overdue, missing, bookings, moveIns, expiring, serviceAccounts, counts] = await Promise.all([
+    // Sin la imagen: el diálogo de revisión la pide a /comprobantes/{id}/imagen.
+    db.paymentProof.findMany({
+      where: { status: "SUBMITTED" },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        rentChargeId: true,
+        amount: true,
+        method: true,
+        reference: true,
+        paidOn: true,
+        createdAt: true,
+        submittedBy: { select: { name: true } },
+        rentCharge: {
+          select: { period: true, amount: true, paidAmount: true, lease: { select: { unit: { select: unitSelect } } } },
+        },
+      },
+    }),
     // Por fecha y no por estado: un cargo atrasado aparece aunque el barrido
     // de vencimientos todavía no lo haya marcado.
     db.rentCharge.findMany({
@@ -92,6 +110,19 @@ export async function getTodayData(db: OrgDb, now = new Date()) {
     {
       period,
       periodName: periodLabel(period),
+      proofs: proofs.map((p) => ({
+        ...place(p.rentCharge.lease.unit),
+        id: p.id,
+        chargeId: p.rentChargeId,
+        periodName: periodLabel(p.rentCharge.period),
+        tenantName: p.submittedBy.name,
+        amount: toNumber(p.amount),
+        method: p.method,
+        reference: p.reference,
+        paidOn: p.paidOn,
+        submittedAt: p.createdAt,
+        remaining: remainingOf(toNumber(p.rentCharge.amount), toNumber(p.rentCharge.paidAmount)),
+      })),
       overdueCharges: overdue.map((c) => ({
         ...place(c.lease.unit),
         id: c.id,

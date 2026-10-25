@@ -16,6 +16,10 @@ import { getPortalData } from "@/lib/queries/portal";
 import { money, periodLabel, shortDate } from "@/lib/format";
 import { CHARGE_STATUS_LABELS, CHARGE_STATUS_TONES } from "@/lib/labels";
 import { ReceiptViewer } from "@/components/payments/receipt-viewer";
+import { SubmitProofDialog } from "@/components/payments/submit-proof-dialog";
+import { Callout } from "@/components/shared/callout";
+import { PROOF_STATUS_LABELS, PROOF_STATUS_TONES } from "@/lib/labels";
+import { remainingOf } from "@/lib/payments";
 
 export const metadata: Metadata = { title: "Mis pagos" };
 
@@ -30,7 +34,7 @@ export default async function PortalPaymentsPage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Mis pagos</h1>
         <p className="text-muted-foreground text-sm text-pretty">
-          El historial de tus cargos de renta y su estado.
+          El historial de tus cargos de renta y su estado. Si ya pagaste, envía tu comprobante.
         </p>
       </div>
 
@@ -107,6 +111,7 @@ export default async function PortalPaymentsPage() {
                       />
                     ) : null}
                   </div>
+                  {charge.status !== "PAID" ? <ProofRow charge={charge} /> : null}
                 </li>
               ))}
             </ul>
@@ -115,4 +120,50 @@ export default async function PortalPaymentsPage() {
       </Card>
     </>
   );
+}
+
+type PortalCharge = Awaited<ReturnType<typeof getPortalData>>["charges"][number];
+
+/**
+ * Comprobante de un cargo sin liquidar: enviarlo, verlo en revisión o, si lo
+ * rechazaron, leer el motivo y enviar otro.
+ */
+function ProofRow({ charge }: { charge: PortalCharge }) {
+  const proof = charge.lastProof;
+  const remaining = remainingOf(charge.amount, charge.paidAmount);
+  const dialog = (resend: boolean) => (
+    <SubmitProofDialog
+      chargeId={charge.id}
+      periodName={periodLabel(charge.period)}
+      remaining={remaining}
+      resend={resend}
+    />
+  );
+
+  if (proof?.status === "SUBMITTED") {
+    return (
+      <div className="flex basis-full flex-wrap items-center gap-2 text-xs">
+        <StatusBadge tone={PROOF_STATUS_TONES.SUBMITTED}>
+          Comprobante {PROOF_STATUS_LABELS.SUBMITTED.toLowerCase()}
+        </StatusBadge>
+        <span className="text-muted-foreground text-pretty">
+          Enviado el {shortDate(proof.createdAt)} por <Amount value={proof.amount} className="font-normal" />.
+          El pago cuenta cuando el administrador lo apruebe.
+        </span>
+      </div>
+    );
+  }
+
+  if (proof?.status === "REJECTED") {
+    return (
+      <div className="basis-full space-y-2">
+        <Callout tone="danger" title="Rechazaron tu comprobante">
+          {proof.rejectionReason ?? "Revisa los datos y envía otro."}
+        </Callout>
+        {dialog(true)}
+      </div>
+    );
+  }
+
+  return <div className="basis-full">{dialog(false)}</div>;
 }

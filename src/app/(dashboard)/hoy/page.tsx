@@ -8,6 +8,7 @@ import { ButtonLink } from "@/components/shared/button-link";
 import { NewBookingDialog } from "@/components/bookings/new-booking-dialog";
 import { RegisterPaymentDialog } from "@/components/payments/payment-row-actions";
 import { GenerateChargesButton } from "@/components/payments/generate-charges-button";
+import { ReviewProofDialog } from "@/components/payments/review-proof-dialog";
 import {
   Card,
   CardContent,
@@ -66,7 +67,7 @@ export default async function TodayPage() {
           <EmptyState
             icon={CheckCircle2}
             title="Nada pendiente por ahora"
-            description="No hay rentas vencidas, cargos por generar, llegadas, salidas, contratos por vencer ni servicios sin monto. Esta lista se actualiza sola en cuanto algo cambia."
+            description="No hay comprobantes por revisar, rentas vencidas, cargos por generar, llegadas, salidas, contratos por vencer ni servicios sin monto. Esta lista se actualiza sola en cuanto algo cambia."
             actions={
               <ButtonLink href="/calendario" variant="outline">
                 <CalendarRange className="size-4" aria-hidden />
@@ -105,12 +106,12 @@ function capitalize(text: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** Cobros y contratos hablan de plazos; llegadas y salidas, de cuándo pasan. */
+/** Los plazos dicen "venció hace 3 días"; los sucesos, "hoy" o "Enviado hace 2 días". */
 function dateText(item: TodayItem) {
   if (item.date === null) return item.when ?? "";
-  const relative =
-    item.group === "estancias" ? relativeDay(item.days) : deadlineLabel(item.days);
-  return `${capitalize(relative)} · ${shortDate(item.date)}`;
+  const relative = item.dateKind === "event" ? relativeDay(item.days) : deadlineLabel(item.days);
+  const text = item.datePrefix ? `${item.datePrefix} ${relative}` : capitalize(relative);
+  return `${text} · ${shortDate(item.date)}`;
 }
 
 function TodayRow({ item }: { item: TodayItem }) {
@@ -133,8 +134,8 @@ function TodayRow({ item }: { item: TodayItem }) {
       <div className="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">
         {item.amount !== undefined ? (
           <span className="text-sm">
-            <span className="text-muted-foreground mr-1.5 text-xs">Por cobrar</span>
-            <Amount value={item.amount} tone="danger" />
+            <span className="text-muted-foreground mr-1.5 text-xs">{item.amountLabel}</span>
+            <Amount value={item.amount} tone={item.action.kind === "review" ? undefined : "danger"} />
           </span>
         ) : null}
         <RowAction action={item.action} />
@@ -157,6 +158,8 @@ function RowAction({ action }: { action: TodayAction }) {
           iconOnlyOnMobile={false}
         />
       );
+    case "review":
+      return <ReviewProofDialog proof={action.proof} />;
     case "generate":
       return <GenerateChargesButton period={action.period} count={action.count} variant="outline" />;
     case "link":

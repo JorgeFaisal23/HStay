@@ -2,6 +2,7 @@ import type {
   BookingSource,
   ChargeStatus,
   LeaseStatus,
+  ProofStatus,
   Role,
   ServiceType,
   SplitMode,
@@ -124,6 +125,20 @@ export const CHARGE_STATUS_TONES: Record<ChargeStatus, Tone> = {
   PAID: "success",
   PARTIAL: "info",
   OVERDUE: "danger",
+};
+
+// ------------------------------------------------------------------ comprobantes
+
+export const PROOF_STATUS_LABELS: Record<ProofStatus, string> = {
+  SUBMITTED: "Por revisar",
+  APPROVED: "Aprobado",
+  REJECTED: "Rechazado",
+};
+
+export const PROOF_STATUS_TONES: Record<ProofStatus, Tone> = {
+  SUBMITTED: "info",
+  APPROVED: "success",
+  REJECTED: "danger",
 };
 
 // ------------------------------------------------------------------ contratos

@@ -25,7 +25,7 @@ const LEASE_URGENT_DAYS = 30;
 export type TodayGroup = "cobros" | "estancias" | "contratos" | "servicios";
 
 export const TODAY_GROUPS: { id: TodayGroup; title: string; description: string }[] = [
-  { id: "cobros", title: "Cobros", description: "Rentas vencidas y cargos del mes por generar." },
+  { id: "cobros", title: "Cobros", description: "Comprobantes por revisar, rentas vencidas y cargos del mes por generar." },
   {
     id: "estancias",
     title: "Llegadas, salidas y limpieza",
@@ -35,8 +35,23 @@ export const TODAY_GROUPS: { id: TodayGroup; title: string; description: string 
   { id: "servicios", title: "Servicios", description: "Recibos del mes que aún no tienen monto." },
 ];
 
+/** Lo que necesita el diálogo de revisión de un comprobante. */
+export type ProofToReview = {
+  id: string;
+  tenantName: string;
+  periodName: string;
+  place: string;
+  amount: number;
+  method: string;
+  reference: string | null;
+  paidOn: Date;
+  /** Lo que falta por pagar del cargo: tope del monto a aprobar. */
+  remaining: number;
+};
+
 export type TodayAction =
   | { kind: "payment"; chargeId: string; tenantName: string; amount: number; paidAmount: number }
+  | { kind: "review"; proof: ProofToReview }
   | { kind: "generate"; period: string; count: number }
   | { kind: "link"; href: string; label: string };
 
@@ -55,10 +70,17 @@ export type TodayItem = {
   date: Date | null;
   /** Días de hoy a `date` (negativo: ya pasó). */
   days: number;
+  /**
+   * Cómo leer la fecha: un plazo ("venció hace 3 días") o un suceso ("hoy",
+   * "hace 2 días"). `datePrefix` lo nombra cuando hace falta ("Enviado").
+   */
+  dateKind: "deadline" | "event";
+  datePrefix?: string;
   /** Texto de la fecha cuando no hay una concreta (p. ej. el periodo). */
   when?: string;
-  /** Monto en juego (lo que falta por cobrar). */
+  /** Monto en juego (lo que falta por cobrar, o lo que declara un comprobante). */
   amount?: number;
+  amountLabel?: string;
   note?: string;
   action: TodayAction;
 };
@@ -78,6 +100,19 @@ export type TodayInput = {
     paidAmount: number;
     tenantId: string;
     tenantName: string;
+  })[];
+  /** Comprobantes enviados por inquilinos que nadie ha revisado. */
+  proofs: (Place & {
+    id: string;
+    chargeId: string;
+    periodName: string;
+    tenantName: string;
+    amount: number;
+    method: string;
+    reference: string | null;
+    paidOn: Date;
+    submittedAt: Date;
+    remaining: number;
   })[];
   /** Contratos vigentes sin cargo del periodo (ver chargeableLeasesWhere). */
   missingCharges: (Place & { tenantName: string; dueDate: Date })[];
@@ -127,6 +162,41 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
   const items: TodayItem[] = [];
 
   // ---------------------------------------------------------------- cobros
+  const chargesWithProof = new Set(input.proofs.map((p) => p.chargeId));
+
+  for (const proof of input.proofs) {
+    items.push({
+      key: `proof:${proof.id}`,
+      group: "cobros",
+      tone: "info",
+      status: "Por revisar",
+      title: `Comprobante de ${proof.tenantName}: renta de ${proof.periodName.toLowerCase()}`,
+      place: placeLabel(proof),
+      person: { role: "Inquilino", name: proof.tenantName },
+      date: proof.submittedAt,
+      days: dayOffset(proof.submittedAt, today),
+      dateKind: "event",
+      datePrefix: "Enviado",
+      amount: proof.amount,
+      amountLabel: "Declara",
+      note: `${proof.method}${proof.reference ? ` · ${proof.reference}` : ""}. El pago no cuenta hasta que lo apruebes.`,
+      action: {
+        kind: "review",
+        proof: {
+          id: proof.id,
+          tenantName: proof.tenantName,
+          periodName: proof.periodName,
+          place: placeLabel(proof),
+          amount: proof.amount,
+          method: proof.method,
+          reference: proof.reference,
+          paidOn: proof.paidOn,
+          remaining: proof.remaining,
+        },
+      },
+    });
+  }
+
   for (const charge of input.overdueCharges) {
     items.push({
       key: `charge:${charge.id}`,
@@ -138,8 +208,14 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
       person: { role: "Inquilino", name: charge.tenantName },
       date: charge.dueDate,
       days: dayOffset(charge.dueDate, today),
+      dateKind: "deadline",
       amount: Math.max(0, charge.amount - charge.paidAmount),
-      note: charge.paidAmount > 0 ? "Tiene un abono parcial." : undefined,
+      amountLabel: "Por cobrar",
+      note: chargesWithProof.has(charge.id)
+        ? "Envió un comprobante: revísalo antes de registrar otro pago."
+        : charge.paidAmount > 0
+          ? "Tiene un abono parcial."
+          : undefined,
       action: {
         kind: "payment",
         chargeId: charge.id,
@@ -166,6 +242,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
       person: { role: count === 1 ? "Inquilino" : "Inquilinos", name: namesList(input.missingCharges.map((c) => c.tenantName)) },
       date: first,
       days: dayOffset(first, today),
+      dateKind: "deadline",
       note: "Sin el cargo no se puede registrar el pago ni avisar si se atrasa.",
       action: { kind: "generate", period: input.period, count },
     });
@@ -185,6 +262,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
         person: { role: "Huésped", name: booking.guestName },
         date: booking.checkIn,
         days: dayOffset(booking.checkIn, today),
+        dateKind: "event",
         note: `${nights === 1 ? "1 noche" : `${nights} noches`} · ${booking.guests === 1 ? "1 huésped" : `${booking.guests} huéspedes`}`,
         action: { kind: "link", href: `/unidades/${booking.unitId}`, label: "Ver unidad" },
       });
@@ -206,6 +284,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
         person: { role: "Huésped", name: booking.guestName },
         date: booking.checkOut,
         days: dayOffset(booking.checkOut, today),
+        dateKind: "event",
         note: turnover ? "Entra otro huésped el mismo día." : "No hay otra llegada ese día.",
         action: { kind: "link", href: `/unidades/${booking.unitId}`, label: "Ver unidad" },
       });
@@ -224,6 +303,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
       person: { role: "Inquilino", name: lease.tenantName },
       date: lease.startDate,
       days: dayOffset(lease.startDate, today),
+      dateKind: "event",
       note: "Empieza su contrato.",
       action: { kind: "link", href: `/inquilinos/${lease.tenantId}`, label: "Ver ficha" },
     });
@@ -243,6 +323,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
       person: { role: "Inquilino", name: lease.tenantName },
       date: lease.endDate,
       days,
+      dateKind: "deadline",
       action: { kind: "link", href: `/inquilinos/${lease.tenantId}`, label: "Renovar o terminar" },
     });
   }
@@ -263,17 +344,24 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
       person: null,
       date: null,
       days: 0,
+      dateKind: "deadline",
       when: input.periodName,
       note: "Puedes copiar los montos del mes anterior.",
       action: { kind: "link", href: "/servicios", label: "Capturar" },
     });
   }
 
-  // Dentro de cada grupo, lo más antiguo o próximo primero; lo que no tiene
-  // fecha (todo el periodo) al final.
+  // Dentro de cada grupo: primero los comprobantes por revisar (se resuelven
+  // en un paso), después lo más antiguo o próximo; lo que no tiene fecha
+  // (todo el periodo) al final.
   const groupOrder = TODAY_GROUPS.map((g) => g.id);
+  const rank = (item: TodayItem) => (item.action.kind === "review" ? 0 : 1);
   const time = (item: TodayItem) => item.date?.getTime() ?? Number.POSITIVE_INFINITY;
   return items.sort(
-    (a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group) || time(a) - time(b) || 0,
+    (a, b) =>
+      groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group) ||
+      rank(a) - rank(b) ||
+      time(a) - time(b) ||
+      0,
   );
 }
