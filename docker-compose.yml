@@ -27,7 +27,7 @@ services:
     build:
       context: .
       args:
-        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-AppRentas}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-HStay}
         NEXT_PUBLIC_APP_TAGLINE: ${NEXT_PUBLIC_APP_TAGLINE:-Administración de rentas}
         NEXT_PUBLIC_APP_COLOR: ${NEXT_PUBLIC_APP_COLOR:-#12263F}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}

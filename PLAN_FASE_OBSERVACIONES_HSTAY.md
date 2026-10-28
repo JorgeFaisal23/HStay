@@ -150,7 +150,7 @@
 | B-12 | "Antes de cerrar una estancia" (OBS-09) | Al salir un huésped solo se avisa la limpieza | Definir qué se revisa al cerrar una estancia (¿cobro de la reserva? hoy `Booking.totalAmount` no tiene estado de pago; ¿daños?; ¿depósito?) | Dueño del producto |
 | P-01 | **Resuelto 2026-10-25** (commit y tag `v0.8.0`; `APP.version` = 0.8.0). Antes: publicar la versión, cambio MINOR (0.8.0). Falta `npm version minor --no-git-tag-version`, mover `[Sin publicar]` a `## [0.8.0]`, sincronizar `APP.version` (hoy "0.1.0"), commit y `git tag v0.8.0` | Los cambios siguen sin commit en `develop` | Visto bueno del responsable para versionar, hacer commit y etiquetar | Responsable del repositorio |
 | P-02 | **Resuelto 2026-10-25** (van en el commit de 0.8.0). Antes: cambios previos ajenos a esta fase en el árbol de trabajo: `src/test/fixtures.ts`, `leases.int.test.ts`, `properties.int.test.ts` (fechas de prueba movidas a 2030) | Se mezclarían con el commit de la fase | Decidir si van en el mismo commit o aparte | Responsable del repositorio |
-| P-03 | Despliegue: `.env.production` y `render.yaml` siguen con `NEXT_PUBLIC_APP_NAME=AppRentas` | Producción y demo no mostrarán "HStay" | Cambiar la variable en cada entorno y recompilar, si se aprueba | Responsable de despliegue |
+| P-03 | **Resuelto 2026-10-27** (`render.yaml`, `docker-compose.yml`, `.env.production` y su ejemplo con `HStay`; falta recompilar producción). Antes: `.env.production` y `render.yaml` siguen con `NEXT_PUBLIC_APP_NAME=AppRentas` | Producción y demo no mostrarán "HStay" | Cambiar la variable en cada entorno y recompilar, si se aprueba | Responsable de despliegue |
 
 ## Criterios de cierre
 La fase solo puede cerrarse cuando:

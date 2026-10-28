@@ -2,10 +2,10 @@
 
 > El producto se llama **HStay**. En el código se usa `APP.name` (variable
 > `NEXT_PUBLIC_APP_NAME`, por defecto `HStay`). **CARCAR es un cliente** (una
-> arrendadora), no el producto; el repositorio conserva ese nombre por
-> historia. Las instalaciones que ya fijan `NEXT_PUBLIC_APP_NAME=AppRentas`
-> (`.env.production`, `render.yaml`) siguen mostrando ese nombre hasta que se
-> cambie la variable y se vuelva a compilar.
+> arrendadora), no el producto. Los nombres internos de base de datos y
+> servicios (`apprentas`, `apprentas-demo`) se conservan para no romper los
+> entornos que ya existen. El nombre visible se incrusta al compilar: tras
+> cambiar `NEXT_PUBLIC_APP_NAME` hay que volver a compilar la imagen.
 
 Plataforma de gestión de rentas: edificios con múltiples
 unidades, control de servicios, cobros de renta, calendario unificado con

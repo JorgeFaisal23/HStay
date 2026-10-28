@@ -38,7 +38,7 @@ services:
       # Identidad del producto: se incrusta en el build; cambiarla requiere
       # volver a desplegar.
       - key: NEXT_PUBLIC_APP_NAME
-        value: AppRentas
+        value: HStay
       - key: NEXT_PUBLIC_APP_TAGLINE
         value: Administración de rentas
       - key: NEXT_PUBLIC_APP_COLOR

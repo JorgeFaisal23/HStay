@@ -9,6 +9,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 
 ## [Sin publicar]
 
+### Cambiado
+- El proyecto pasa a llamarse **HStay**: paquete `hstay` y `NEXT_PUBLIC_APP_NAME=HStay` en `render.yaml`, `docker-compose.yml` y `.env.production.example` (antes "AppRentas"). Los nombres internos de base de datos y servicios (`apprentas`) no cambian.
+
 ## [0.10.0] - 2026-10-25
 
 ### Añadido
