@@ -48,23 +48,48 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Neutros sobre vidrio. La página no es blanca ni gris: es una aurora en los
+   colores del logo (ver AuroraBackground) y encima van superficies de vidrio.
+   Por eso card, popover, sidebar, muted, accent, border e input son
+   translúcidos. La referencia de uso está en DESIGN.md §3.0 y §7. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  /* Aurora (claro): pastel sobre lavanda. */
+  --aurora-base: oklch(0.965 0.02 290);
+  --aurora-1: oklch(0.68 0.22 300);
+  --aurora-2: oklch(0.62 0.22 265);
+  --aurora-3: oklch(0.85 0.13 205);
+  --aurora-4: oklch(0.74 0.24 330);
+  --aurora-5: oklch(0.84 0.12 50);
+  --aurora-opacity: 0.6;
+  --aurora-blur: 42px;
+  --aurora-veil: oklch(0.97 0.02 290 / 22%);
+
+  /* Vidrio (claro). */
+  --glass: oklch(1 0 0 / 62%);
+  --glass-strong: oklch(1 0 0 / 90%);
+  --glass-border: oklch(1 0 0 / 70%);
+  --glass-highlight: oklch(1 0 0 / 85%);
+  --glass-shadow: 0 1px 2px oklch(0.35 0.08 285 / 6%),
+    0 10px 30px -12px oklch(0.35 0.12 285 / 18%);
+  --glass-shadow-strong: 0 24px 60px -16px oklch(0.3 0.12 285 / 32%);
+  --glass-blur: 20px;
+
+  --background: var(--aurora-base);
+  --foreground: oklch(0.21 0.035 280);
+  --card: var(--glass);
+  --card-foreground: var(--foreground);
+  --popover: var(--glass-strong);
+  --popover-foreground: var(--foreground);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --secondary: oklch(0.21 0.035 280 / 6%);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.21 0.035 280 / 5%);
+  --muted-foreground: oklch(0.44 0.035 280);
+  --accent: oklch(0.21 0.035 280 / 6%);
+  --accent-foreground: var(--foreground);
+  --border: oklch(0.21 0.035 280 / 10%);
+  --input: oklch(0.21 0.035 280 / 15%);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -72,45 +97,48 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar: var(--glass);
+  --sidebar-foreground: var(--foreground);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-accent: oklch(0.21 0.035 280 / 7%);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: oklch(0.21 0.035 280 / 9%);
   --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  /* Aurora (oscuro, predeterminado): luz viva sobre azul noche. */
+  --aurora-base: oklch(0.15 0.045 275);
+  --aurora-1: oklch(0.62 0.26 300);
+  --aurora-2: oklch(0.52 0.27 265);
+  --aurora-3: oklch(0.84 0.15 205);
+  --aurora-4: oklch(0.68 0.28 330);
+  --aurora-5: oklch(0.8 0.14 50);
+  --aurora-opacity: 0.9;
+  --aurora-veil: oklch(0.15 0.045 275 / 20%);
+
+  /* Vidrio (oscuro). */
+  --glass: oklch(0.2 0.035 280 / 58%);
+  --glass-strong: oklch(0.2 0.035 280 / 88%);
+  --glass-border: oklch(1 0 0 / 11%);
+  --glass-highlight: oklch(1 0 0 / 14%);
+  --glass-shadow: 0 1px 2px oklch(0 0 0 / 20%),
+    0 14px 36px -14px oklch(0 0 0 / 50%);
+  --glass-shadow-strong: 0 28px 70px -18px oklch(0 0 0 / 65%);
+
+  --foreground: oklch(0.97 0.01 290);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
+  --secondary: oklch(1 0 0 / 8%);
+  --muted: oklch(1 0 0 / 7%);
+  --muted-foreground: oklch(0.8 0.03 285);
+  --accent: oklch(1 0 0 / 9%);
+  --border: oklch(1 0 0 / 11%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(1 0 0 / 9%);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
@@ -235,8 +263,17 @@
     overflow-x: hidden;
   }
 
+  /* Los controles nativos (NativeSelect, selector de fecha, barras de
+     desplazamiento) siguen el tema. */
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+
   /* Movimiento reducido: una sola guarda global en vez de motion-reduce en
-     cada componente. */
+     cada componente. La aurora, además, se queda quieta. */
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,
@@ -246,5 +283,171 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+    .aurora * {
+      animation: none !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ vidrio
+   Dos niveles (DESIGN.md §7). Traen fondo, desenfoque, borde, brillo superior
+   y sombra; las pantallas no arman vidrio con backdrop-blur sueltos. El borde
+   va como sombra interior para no mover el layout. */
+@utility glass {
+  background-color: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-highlight),
+    inset 0 0 0 1px var(--glass-border),
+    var(--glass-shadow);
+}
+
+@utility glass-strong {
+  background-color: var(--glass-strong);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.4)) saturate(170%);
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.4)) saturate(170%);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-highlight),
+    inset 0 0 0 1px var(--glass-border),
+    var(--glass-shadow-strong);
+}
+
+/* Fuera de capas a propósito, para ganarle a las utilidades:
+   - vidrio dentro de vidrio no vuelve a desenfocar (se ve sucio y es caro);
+   - sin backdrop-filter, el vidrio sube a la opacidad del nivel 2 para que el
+     texto siga leyéndose. */
+:is(.glass, .glass-strong) :is(.glass, .glass-strong) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background-color: var(--glass-strong);
+  }
+}
+
+/* ------------------------------------------------------------------ aurora
+   Fondo de toda la app (DESIGN.md §16). Cada ola va un poco inclinada
+   (`rotate`, que se compone aparte de la animación) y tiene tres capas:
+   .aurora-wave-n desplaza en horizontal (bucle sin costura, -50 %), .aurora-drift
+   la mece en vertical y el SVG, quieto, lleva el desenfoque. Así el navegador
+   rasteriza el desenfoque una vez y solo compone transformaciones. */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  background-color: var(--aurora-base);
+}
+
+.aurora-wave {
+  position: absolute;
+  left: 0;
+  width: 200%;
+  opacity: var(--aurora-opacity);
+  will-change: transform;
+  animation: aurora-wave linear infinite;
+}
+
+.dark .aurora-wave {
+  mix-blend-mode: screen;
+}
+
+.aurora-drift {
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+  animation: aurora-drift ease-in-out infinite alternate;
+}
+
+.aurora-drift > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: blur(var(--aurora-blur));
+}
+
+.aurora-wave-1 {
+  top: -8%;
+  height: 52%;
+  rotate: -5deg;
+  animation-duration: 38s;
+}
+.aurora-wave-1 > .aurora-drift {
+  animation-duration: 17s;
+}
+
+.aurora-wave-2 {
+  top: 18%;
+  height: 48%;
+  rotate: 4deg;
+  animation-duration: 46s;
+  animation-direction: reverse;
+}
+.aurora-wave-2 > .aurora-drift {
+  animation-duration: 21s;
+  animation-delay: -6s;
+}
+
+.aurora-wave-3 {
+  top: 44%;
+  height: 46%;
+  rotate: -3deg;
+  animation-duration: 32s;
+}
+.aurora-wave-3 > .aurora-drift {
+  animation-duration: 14s;
+  animation-delay: -3s;
+}
+
+.aurora-wave-4 {
+  top: 66%;
+  height: 50%;
+  rotate: 6deg;
+  animation-duration: 54s;
+  animation-direction: reverse;
+}
+.aurora-wave-4 > .aurora-drift {
+  animation-duration: 22s;
+  animation-delay: -9s;
+}
+
+.aurora-veil {
+  position: absolute;
+  inset: 0;
+  background-color: var(--aurora-veil);
+}
+
+/* Celular: una ola menos y menos desenfoque, por rendimiento. */
+@media (max-width: 639px) {
+  .aurora {
+    --aurora-blur: 30px;
+  }
+  .aurora-wave-3 {
+    top: 58%;
+  }
+  .aurora-wave-4 {
+    display: none;
+  }
+}
+
+@keyframes aurora-wave {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(0, -6%, 0) scaleY(0.85);
+  }
+  to {
+    transform: translate3d(0, 8%, 0) scaleY(1.2);
   }
 }

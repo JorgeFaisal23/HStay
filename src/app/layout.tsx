@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Poppins, Source_Sans_3 } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuroraBackground } from "@/components/shared/aurora-background";
 import { Toaster } from "@/components/ui/sonner";
 import { APP } from "@/lib/app";
 import { brandStyleSheet } from "@/lib/brand";
@@ -73,6 +74,8 @@ export default async function RootLayout({
           id="brand-tokens"
           dangerouslySetInnerHTML={{ __html: brandCss }}
         />
+        {/* Fondo de toda la app (DESIGN.md §16): fijo, detrás de todo. */}
+        <AuroraBackground />
         <ThemeProvider>{children}</ThemeProvider>
         <Toaster position="top-right" richColors />
       </body>

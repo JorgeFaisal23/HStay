@@ -102,7 +102,7 @@ export function AmountInput({
       }}
       className={cn(
         "h-8 w-full min-w-20 rounded-lg border border-transparent bg-transparent px-2 text-right text-sm tabular-nums transition-colors",
-        "hover:border-input focus:border-ring focus:ring-ring/40 focus:bg-background focus:ring-3 focus:outline-none",
+        "hover:border-input focus:border-ring focus:ring-ring/40 focus:bg-popover focus:ring-3 focus:outline-none",
         "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
         value === "" && "text-muted-foreground",
         pending && "opacity-60",

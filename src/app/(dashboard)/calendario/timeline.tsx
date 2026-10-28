@@ -59,7 +59,7 @@ export function Timeline({
       <div className="min-w-3xl">
         {/* ------------------------------------------------ encabezado */}
         <div className="flex border-b">
-          <div className="bg-background sticky left-0 z-10 w-28 shrink-0 py-2 pr-3 text-xs font-medium text-muted-foreground">
+          <div className="bg-popover sticky left-0 z-10 w-28 shrink-0 py-2 pr-3 text-xs font-medium text-muted-foreground">
             Unidad
           </div>
           <div className="grid flex-1" style={gridStyle}>
@@ -95,7 +95,7 @@ export function Timeline({
 
             {group.rows.map((row) => (
               <div key={row.unitId} className="hover:bg-accent/40 flex border-b">
-                <div className="bg-background sticky left-0 z-10 w-28 shrink-0 py-1.5 pr-3">
+                <div className="bg-popover sticky left-0 z-10 w-28 shrink-0 py-1.5 pr-3">
                   <Link
                     href={`/unidades/${row.unitId}`}
                     className="text-sm font-medium hover:underline"

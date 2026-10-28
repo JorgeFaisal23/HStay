@@ -17,7 +17,7 @@ Al final hay una [lista de revisión](#15-lista-de-revisión) para PRs y agentes
 2. **Una acción sólida por pantalla.** Solo la acción principal usa el botón `default` (relleno de marca). El resto va en `outline`, `ghost` o `link`.
 3. **El dinero es el contenido.** Los montos son el dato más importante de la aplicación y se ven como tal: cifras grandes, alineadas y fáciles de comparar.
 4. **El estado no es la marca.** Verde, ámbar, rojo y azul significan lo mismo en toda la app y no dependen del color que elija el arrendador.
-5. **Calma con pulso.** La base es neutra; encima van un acento de marca dosificado y movimiento breve. Es casi minimalista, pero no frío: la interfaz responde y tiene personalidad sin hacer ruido.
+5. **Vidrio sobre aurora.** La personalidad la pone el ambiente: un fondo de aurora en olas, en los colores del logo de HStay, que se mueve despacio. El contenido vive encima, en superficies de vidrio legibles y tranquilas. El único movimiento continuo es el fondo; lo demás solo se mueve para responder al usuario.
 
 ---
 
@@ -26,10 +26,11 @@ Al final hay una [lista de revisión](#15-lista-de-revisión) para PRs y agentes
 | Identidad | Qué es | Dónde vive | Dónde aparece |
 |---|---|---|---|
 | **Marca del arrendador** | Nombre, logo, color, radio y tipografía de quien renta | Tabla `Organization` → [`src/lib/brand.ts`](src/lib/brand.ts) | Toda la interfaz: panel, portal y acceso |
-| **Producto** (`APP.name`, configurable) | El software | [`src/lib/app.ts`](src/lib/app.ts) (`NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_APP_COLOR`, por defecto `#12263F`) | Solo en los márgenes: pie del menú, pie del portal, acceso, planes, favicon y metadatos |
+| **Producto** (`APP.name`, configurable) | El software | [`src/lib/app.ts`](src/lib/app.ts) (`NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_APP_COLOR`, por defecto `#6D28D9`) | En los márgenes (pie del menú, pie del portal, acceso, planes, favicon y metadatos) **y en el ambiente**: la aurora del fondo |
 
 - La marca del arrendador llega como variables CSS inyectadas en el render de servidor (`brandStyleSheet()`). Por eso **ningún componente conoce el color de marca**: usa `primary`, `brand-soft` y `brand-strong`.
-- El producto usa su propio color para que no cambie con cada cliente. Su distintivo es [`AppMark`](src/components/shared/app-mark.tsx) (la inicial de `APP.name`). El producto se llama **HStay** (valor por defecto de `APP.name`, configurable con `NEXT_PUBLIC_APP_NAME`); en el código siempre se usa `APP.name`, nunca el nombre escrito a mano. El logo y el color definitivos del producto están pendientes: mientras tanto se conservan la inicial y `#12263F`. CARCAR es un cliente (una arrendadora), no el producto.
+- El producto usa su propio color para que no cambie con cada cliente. Su distintivo es [`AppMark`](src/components/shared/app-mark.tsx): la "H" del logo (dos píldoras verticales, violeta→azul y cian→azul, unidas por una cinta magenta→durazno). Los colores del logo viven en `APP_LOGO` de `app.ts`; `APP.color` es el violeta del logo y es el primario en las pantallas sin arrendadora (acceso genérico, superadmin). El producto se llama **HStay** (valor por defecto de `APP.name`, configurable con `NEXT_PUBLIC_APP_NAME`); en el código siempre se usa `APP.name`, nunca el nombre escrito a mano. El archivo original del logo es `LOGO HStay.jpeg`, en la raíz. CARCAR es un cliente (una arrendadora), no el producto.
+- **La aurora es del producto, las acciones son del arrendador.** El fondo siempre usa la paleta del logo de HStay; botones, enlaces, foco, ítem activo y gráficas siguen usando el color de la arrendadora. Así la app se reconoce como HStay en cualquier cliente sin quitarle a la arrendadora su color.
 
 ---
 
@@ -37,18 +38,37 @@ Al final hay una [lista de revisión](#15-lista-de-revisión) para PRs y agentes
 
 Todos los colores son tokens definidos en [`src/app/globals.css`](src/app/globals.css). **Fuera de ese archivo no se usa la paleta cruda de Tailwind** (`rose-500`, `emerald-50`, `sky-600`…) ni colores hex. La única excepción es la identidad del producto (`app.ts`, `app-mark.tsx`, `icon.tsx`, `manifest.ts`) y los preajustes de color de `brand.ts`.
 
+### 3.0 Aurora y vidrio (el ambiente)
+
+| Token | Uso |
+|---|---|
+| `--aurora-base` | Color de fondo detrás de la aurora (azul noche en oscuro, lavanda en claro). `--background` apunta a él |
+| `--aurora-1` … `--aurora-5` | Colores del logo: violeta, azul eléctrico, cian, magenta y durazno |
+| `--aurora-opacity` | Intensidad general de las olas (más baja en claro) |
+| `--aurora-veil` | Velo que cubre la aurora para contener el brillo detrás del contenido |
+| `--glass` | Superficie de vidrio de nivel 1: tarjetas, encabezados y menú lateral. `--card` y `--sidebar` apuntan a él |
+| `--glass-strong` | Vidrio de nivel 2, más opaco: diálogos, popovers, menús, selects, sheets y toasts. `--popover` apunta a él |
+| `--glass-border` | Borde claro del vidrio |
+| `--glass-highlight` | Brillo de 1 px en el borde superior |
+| `--glass-shadow` / `--glass-shadow-strong` | Sombra suave de nivel 1 y de nivel 2 |
+| `--glass-blur` | Desenfoque del vidrio |
+
+- **Los `--aurora-*` solo se usan en [`AuroraBackground`](src/components/shared/aurora-background.tsx)** (y sus equivalentes en hex, en la identidad del producto). Nunca en texto, botones, gráficas ni estados.
+- **El vidrio se aplica con las utilidades `glass` y `glass-strong`** de `globals.css`, que ya traen fondo, desenfoque, borde, brillo y sombra. No se arma vidrio con `backdrop-blur` y `bg-white/…` sueltos.
+
 ### 3.1 Neutros (la base)
 
 | Token | Uso |
 |---|---|
-| `background` | Fondo de página |
-| `card` | Superficie de tarjeta, diálogo y popover |
-| `muted` | Fondos secundarios: filas agrupadoras, iconos neutros, skeleton |
+| `background` | Color base de la página (solo lo pinta el `body`; encima va la aurora) |
+| `card` | Superficie de tarjeta (vidrio de nivel 1) |
+| `popover` | Superficie flotante (vidrio de nivel 2). También es el fondo casi opaco de columnas fijas que se desplazan sobre otro contenido |
+| `muted` | Fondos secundarios translúcidos: filas agrupadoras, iconos neutros, skeleton |
 | `muted-foreground` | Texto secundario: descripciones, etiquetas, encabezados de tabla |
-| `border` / `input` | Bordes de tarjetas internas, separadores y controles |
+| `border` / `input` | Bordes de tarjetas internas, separadores y controles (translúcidos) |
 | `foreground` | Texto principal |
 
-El 90 % de la interfaz se resuelve solo con neutros.
+El 90 % de la interfaz se resuelve solo con neutros. `muted`, `accent`, `border` e `input` son translúcidos para que se lean igual sobre cualquier vidrio.
 
 ### 3.2 Marca (el acento)
 
@@ -58,7 +78,7 @@ Estos tokens los sobreescribe `brandStyleSheet()` con el color del arrendador, e
 |---|---|
 | `primary` / `primary-foreground` | La acción principal, el foco (`ring`), enlaces y el ítem activo |
 | `primary/10` | Fondo de chip o ítem activo de navegación (`bg-primary/10 text-primary`) |
-| `brand-soft` | **Superficie con tinte de marca** (ver la regla abajo) |
+| `brand-soft` | **Superficie con tinte de marca**: el color del arrendador al 12–18 % de opacidad, para que el vidrio se siga viendo (ver la regla abajo) |
 | `brand-strong` | Texto o icono sobre `brand-soft` |
 | `chart-1…5` | Series de gráficas, derivadas del color de marca |
 
@@ -150,11 +170,13 @@ Escala base de 4 px (la de Tailwind). Los espaciados son fijos por contexto:
 
 **Estructuras:**
 
+- **Fondo:** ningún layout ni pantalla pinta fondo de página (`bg-background`, `bg-muted/30`…). El fondo es la aurora, que se monta una sola vez en el [layout raíz](src/app/layout.tsx). Los encabezados fijos y el menú lateral son vidrio (`glass`).
 - **Panel:** menú lateral colapsable + encabezado fijo de 56 px (`h-14`) + contenido a todo el ancho. Ver [`(dashboard)/layout.tsx`](src/app/(dashboard)/layout.tsx).
-- **Portal:** sin menú lateral. Contenido centrado en `max-w-4xl` sobre `bg-muted/30`, y navegación en píldoras. Ver [`(portal)/portal/layout.tsx`](src/app/(portal)/portal/layout.tsx).
+- **Portal:** sin menú lateral. Contenido centrado en `max-w-4xl` y navegación en píldoras. Ver [`(portal)/portal/layout.tsx`](src/app/(portal)/portal/layout.tsx).
 - **Operación:** como el portal, pero en `max-w-2xl` y con tarjetas de una tarea cada una (unidad, dirección, para cuándo y "Marcar como hecha"). Usa la misma [`PortalNav`](src/components/layout/portal-nav.tsx) con sus propios enlaces. Ver [`(operacion)/operacion/layout.tsx`](src/app/(operacion)/operacion/layout.tsx).
+- **Propietario:** como el portal (`max-w-4xl`, sin menú lateral, [`PortalNav`](src/components/layout/portal-nav.tsx)) y de solo lectura: una [`OwnerStatementCard`](src/components/owners/owner-statement-card.tsx) por propiedad. Nunca muestra nombres de inquilinos ni huéspedes, solo unidades y montos. Ver [`(propietario)/propietario/layout.tsx`](src/app/(propietario)/propietario/layout.tsx).
 - **Formularios:** `max-w-2xl`, una columna en móvil y como máximo dos en escritorio.
-- **Acceso:** dos columnas en `lg`. A la izquierda el panel de marca (`bg-primary`); a la derecha el formulario en `max-w-sm`.
+- **Acceso:** dos columnas en `lg`. A la izquierda el panel de marca, un panel de vidrio (`glass`) sobre la aurora; a la derecha el formulario en `max-w-sm`, dentro de una tarjeta.
 
 ---
 
@@ -172,11 +194,17 @@ Escala base de 4 px (la de Tailwind). Los espaciados son fijos por contexto:
 
 No se usa `rounded` sin sufijo ni radios arbitrarios fuera de `src/components/ui/`.
 
-**Elevación:**
+**Elevación: capas de vidrio.**
 
-- **Tarjetas:** se separan con `ring-1 ring-foreground/10` y **sin sombra**.
-- **Capas flotantes:** solo popover, menú, diálogo, sheet, toast y el aviso de `PremiumGate` llevan sombra.
-- **Profundidad dentro de una tarjeta:** se marca con `border` o `bg-muted/50`, nunca con sombra.
+| Nivel | Qué | Cómo |
+|---|---|---|
+| 0 | Aurora | [`AuroraBackground`](src/components/shared/aurora-background.tsx), una sola, en el layout raíz |
+| 1 | Tarjetas, encabezados fijos, menú lateral, panel de marca del acceso | Utilidad `glass`: vidrio translúcido, borde claro, brillo superior y sombra suave |
+| 2 | Diálogo, alert dialog, popover, menú, select, sheet, toast, tooltip de gráfica | Utilidad `glass-strong`: más opaco y con sombra más marcada |
+
+- Los primitivos de `src/components/ui/` ya traen su nivel. Las pantallas no agregan `glass` a mano salvo para un panel que no sea `Card` (p. ej. el de acceso).
+- **No se anida vidrio en vidrio.** Un desenfoque dentro de otro se ve sucio y cuesta rendimiento. Dentro de una tarjeta, la profundidad se marca con `border` o `bg-muted/50`, nunca con otra capa de vidrio ni con sombra.
+- **No se agregan sombras sueltas** (`shadow-*`) en las pantallas: la sombra la pone el nivel.
 
 ---
 
@@ -210,8 +238,9 @@ El movimiento confirma que la interfaz respondió; nunca adorna.
 | Transiciones más largas | Como máximo `duration-200` |
 
 - **Duraciones:** de 150 a 200 ms, con salida suave (ease-out).
-- **Qué no se anima:** cambios de layout, montos o contadores, tablas completas. Tampoco se usan rebotes, parallax ni animaciones en bucle (salvo el skeleton).
-- **Movimiento reducido:** `globals.css` lo respeta con una guarda global (`prefers-reduced-motion`). No hace falta agregar `motion-reduce:` en cada componente.
+- **Qué no se anima:** cambios de layout, montos o contadores, tablas completas. Tampoco se usan rebotes ni parallax.
+- **Animaciones en bucle:** solo dos, la aurora del fondo (§16) y el skeleton. Ninguna pantalla agrega otra.
+- **Movimiento reducido:** `globals.css` lo respeta con una guarda global (`prefers-reduced-motion`), que además deja la aurora quieta. No hace falta agregar `motion-reduce:` en cada componente.
 - **Prefiere `transition-colors` a `transition`** (que anima todas las propiedades).
 
 ---
@@ -246,6 +275,9 @@ Antes de crear algo, revisa esta tabla. Los primitivos de `src/components/ui/` s
 | Asignar quién hace una tarea | [`AssignTaskDialog`](src/components/tasks/assign-task-dialog.tsx) (Operación primero en la lista) | Escribir el nombre a mano |
 | Cerrar una tarea | [`CompleteTaskDialog`](src/components/tasks/complete-task-dialog.tsx): limpieza con foto opcional; reparación con foto, costo y, si costó, comprobante | Marcar hecha sin evidencia |
 | Aprobar un gasto de reparación | [`ReviewExpenseDialog`](src/components/tasks/review-expense-dialog.tsx), con el mismo patrón que `ReviewProofDialog` | Sumar gastos sin revisión |
+| Mostrar el estado de cuenta de un propietario | [`OwnerStatementCard`](src/components/owners/owner-statement-card.tsx): "Pendiente de entregar" como cifra clave (`text-3xl`, `tone="danger"` solo si es negativo y con texto que lo explique); tabla por mes (cobrado, gastos, entregado) con montos a la derecha; entregas en `ul.divide-y`. La misma tarjeta sirve al equipo (con acciones) y al propietario (sin acciones) | Calcular el pendiente en la pantalla |
+| Registrar una entrega al propietario | [`RecordPayoutDialog`](src/components/owners/record-payout-dialog.tsx): monto (propone lo pendiente), fecha, forma de pago, referencia, nota y comprobante opcional con `ReceiptPicker` | Restar a mano del pendiente |
+| Asignar el propietario de una propiedad | [`AssignOwnerDialog`](src/components/owners/assign-owner-dialog.tsx): propietario (`NativeSelect`, con "Sin propietario") y mes de inicio de cuentas | Escribir el nombre a mano |
 | Decir para cuándo es una tarea | `dueLabel` de `format.ts` ("para hoy", "en 3 días") | "Para en 3 días" |
 | Mostrar cuánto del plan se usa | [`PlanUsage`](src/components/shared/plan-usage.tsx) (lee `PLAN_LIMITS`) | Límites escritos a mano en la pantalla |
 | Explicar una lista vacía | [`EmptyState`](src/components/shared/empty-state.tsx): por qué está vacía y qué hacer | Tabla en blanco o "Sin datos" |
@@ -282,6 +314,7 @@ Antes de crear algo, revisa esta tabla. Los primitivos de `src/components/ui/` s
 
 ## 13. Modo oscuro
 
+- **Oscuro es el tema predeterminado** ([`theme-provider.tsx`](src/components/theme-provider.tsx)): es donde la aurora y el vidrio lucen más. El claro sigue disponible: aurora pastel sobre lavanda y vidrio blanco.
 - **Cómo se activa:** con la clase `.dark` (`next-themes`); el usuario lo cambia en su menú.
 - **Tokens:** todos tienen su par oscuro en `globals.css`. Los de marca los calcula `brandStyleSheet()`, que aclara el primario un 18 %.
 - **Lo que no se hace:** no se escriben variantes `dark:` en las pantallas. Si un token no se ve bien en oscuro, se corrige el token.
@@ -291,6 +324,7 @@ Antes de crear algo, revisa esta tabla. Los primitivos de `src/components/ui/` s
 ## 14. Accesibilidad
 
 - **Contraste:** AA (4.5:1 en texto). `brand.ts` elige automáticamente blanco o casi negro como `primary-foreground` para cualquier color de marca.
+- **Contraste sobre vidrio:** se mide sobre la zona **más brillante** de la aurora (cian o durazno), no sobre el promedio. Por eso la opacidad de `--glass` tiene un mínimo y `--aurora-veil` baja el brillo; si un texto no llega a 4.5:1, se sube la opacidad del token, no se agrega un fondo en la pantalla.
 - **Foco:** siempre visible (`focus-visible:ring-3 ring-ring/50`). No se quita el `outline` sin dar una alternativa.
 - **Estado:** nunca solo con color (ver §3.3).
 - **Formularios:** cada control tiene su `Label`; los errores van en un `Callout` con `role="alert"`.
@@ -312,7 +346,10 @@ Antes de dar por terminado un cambio de interfaz, revisa:
 - [ ] Las tablas usan `ui/table.tsx`; las listas vacías usan `EmptyState`.
 - [ ] Los controles miden 36 px (`h-9`) y los iconos clicables van dentro de un `Button`.
 - [ ] Las transiciones usan `transition-colors` y duran como máximo 200 ms.
-- [ ] Se probó en claro y oscuro, a 375 px de ancho y con al menos dos colores de marca (uno rojo, para confirmar que no se confunde con "Vencido").
+- [ ] Ningún layout ni pantalla pinta fondo de página; el vidrio sale de `Card`, de los primitivos o de las utilidades `glass` / `glass-strong`, sin `backdrop-blur` sueltos.
+- [ ] No hay vidrio dentro de vidrio ni sombras sueltas.
+- [ ] Los tokens `aurora-*` no aparecen fuera de `globals.css` y `aurora-background.tsx`.
+- [ ] Se probó en oscuro y claro (sobre la zona más brillante de la aurora), a 375 px de ancho, con "reducir movimiento" y con al menos dos colores de marca (uno rojo, para confirmar que no se confunde con "Vencido").
 
 ```sh
 # Comprobaciones rápidas (no deberían devolver nada)
@@ -320,4 +357,34 @@ rg "(emerald|amber|rose|sky|slate|red|green|blue|orange|yellow)-\d{2,3}" src
 rg "text-\[\d+px\]" src
 rg "\brounded\b[^-]" src --glob '!src/components/ui/**'
 rg "dark:" src/app
+rg "bg-muted/30|backdrop-blur|shadow-(sm|md|lg|xl)" src --glob '!src/components/ui/**'
+rg -F "var(--aurora" src --glob '!src/app/globals.css' --glob '!**/aurora-background.tsx'
 ```
+
+---
+
+## 16. Aurora
+
+El fondo de toda la app es [`AuroraBackground`](src/components/shared/aurora-background.tsx): olas de luz en los colores del logo que se desplazan despacio detrás del vidrio.
+
+**Capas** (de atrás hacia adelante):
+
+1. Base: `--aurora-base`.
+2. Cuatro olas SVG, cada una con un degradado de dos o tres colores `--aurora-*`, desenfocadas y con forma de onda. El SVG mide el doble del ancho de la pantalla y la onda se repite, así que al desplazarlo `-50 %` el ciclo no tiene costura.
+3. Velo (`--aurora-veil`): baja el brillo para que el vidrio y el texto se lean.
+
+**Movimiento:**
+
+- Cada ola combina `aurora-wave` (desplazamiento horizontal, 28–46 s) con `aurora-drift` (vaivén vertical y de escala, 14–22 s). Duraciones y sentidos distintos para que el conjunto nunca se vea repetido.
+- Solo se animan `transform` (lo resuelve la GPU, sin repintar). Sin JavaScript.
+- En celular (`max-sm`) se oculta la cuarta ola y se reduce el desenfoque.
+- Con `prefers-reduced-motion` la aurora queda quieta.
+
+**Para ajustar:**
+
+| Quiero… | Toco |
+|---|---|
+| Cambiar colores | `--aurora-1…5` en `globals.css` (claro y oscuro) |
+| Más o menos intensidad | `--aurora-opacity` y `--aurora-veil` |
+| Más o menos velocidad | Las duraciones de `.aurora-wave-n` en `globals.css` |
+| Más o menos transparencia del vidrio | `--glass` y `--glass-strong` (revisando el contraste, §14) |

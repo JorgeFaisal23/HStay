@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { APP } from "@/lib/app";
+import { APP, APP_LOGO } from "@/lib/app";
 
 /**
  * El manifiesto describe el producto, no a la arrendadora: es lo que el
@@ -13,7 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: APP.description,
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
+    // El fondo de la aurora en oscuro, el tema predeterminado.
+    background_color: APP_LOGO.night,
     theme_color: APP.color,
     icons: [
       {

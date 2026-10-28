@@ -61,23 +61,23 @@ export function LoginScreen({
 
   return (
     <main className="grid min-h-svh lg:grid-cols-2">
-      {/* Columna de marca: se oculta en celular para no empujar el formulario. */}
-      <section className="bg-primary text-primary-foreground hidden flex-col justify-between p-10 lg:flex">
+      {/* Columna de marca: panel de vidrio sobre la aurora. Se oculta en
+          celular para no empujar el formulario. */}
+      <section className="glass m-4 hidden flex-col justify-between rounded-xl p-10 lg:flex">
         <div className="flex items-center gap-3">
           {isProduct ? (
-            <AppWordmark variant="plain" className="text-lg" />
+            <AppWordmark className="text-lg" />
           ) : (
             <>
               <BrandLogo
                 brandName={brand.brandName}
                 logoUrl={brand.logoUrl}
                 size="md"
-                className="bg-primary-foreground/15"
               />
               <span className="text-lg font-semibold">{brand.brandName}</span>
               {/* El producto se presenta aparte de la marca, separado por una
                   línea, para que no se lean como un mismo nombre compuesto. */}
-              <span className="border-primary-foreground/25 text-primary-foreground/70 ml-auto border-l pl-3">
+              <span className="text-muted-foreground ml-auto border-l pl-3">
                 <AppWordmark variant="plain" className="text-sm" />
               </span>
             </>
@@ -89,7 +89,7 @@ export function LoginScreen({
             <h2 className="text-3xl font-semibold text-balance">
               La administración de tus rentas, en un solo lugar.
             </h2>
-            <p className="text-primary-foreground/80 text-pretty">
+            <p className="text-muted-foreground text-pretty">
               Contratos, servicios, cobros y reservas. Tú y tu equipo trabajan
               sobre la misma información; tus inquilinos consultan la suya.
             </p>
@@ -98,12 +98,12 @@ export function LoginScreen({
           <ul className="space-y-5">
             {HIGHLIGHTS.map(({ icon: Icon, title, text }) => (
               <li key={title} className="flex gap-3">
-                <span className="bg-primary-foreground/15 flex size-9 shrink-0 items-center justify-center rounded-md">
+                <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-md">
                   <Icon className="size-4" aria-hidden />
                 </span>
                 <div>
                   <p className="font-medium">{title}</p>
-                  <p className="text-primary-foreground/75 text-sm text-pretty">
+                  <p className="text-muted-foreground text-sm text-pretty">
                     {text}
                   </p>
                 </div>
@@ -113,19 +113,19 @@ export function LoginScreen({
         </div>
 
         <div className="space-y-1">
-          <p className="text-primary-foreground/70 text-xs font-medium">
+          <p className="text-muted-foreground text-xs font-medium">
             {APP_VERSION_LABEL}
           </p>
           {demoAccounts.length > 0 ? (
-            <p className="text-primary-foreground/60 text-xs">
+            <p className="text-muted-foreground text-xs">
               Versión de demostración. Los datos mostrados son ficticios.
             </p>
           ) : null}
         </div>
       </section>
 
-      <section className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-sm space-y-8">
+      <section className="flex items-center justify-center p-4 sm:p-10">
+        <div className="glass w-full max-w-sm space-y-8 rounded-xl p-6 sm:p-8">
           <div className="space-y-2">
             <div className="flex items-center gap-3 lg:hidden">
               {logo}

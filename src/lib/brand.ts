@@ -182,7 +182,7 @@ export function brandStyleSheet(brand: BrandInput) {
   --sidebar-primary: ${primary};
   --sidebar-primary-foreground: ${foreground};
   --sidebar-ring: ${primary};
-  --brand-soft: ${shift(primary, 0.9)};
+  --brand-soft: color-mix(in oklch, ${primary} 12%, transparent);
   --brand-strong: ${shift(primary, -0.2)};
   --chart-1: ${primary};
   --chart-2: ${shift(primary, 0.3)};
@@ -196,7 +196,7 @@ html.dark {
   --ring: ${shift(primary, 0.18)};
   --sidebar-primary: ${shift(primary, 0.18)};
   --sidebar-primary-foreground: ${readableForeground(shift(primary, 0.18))};
-  --brand-soft: ${shift(primary, -0.55)};
+  --brand-soft: color-mix(in oklch, ${shift(primary, 0.18)} 18%, transparent);
   --brand-strong: ${shift(primary, 0.35)};
   --chart-1: ${shift(primary, 0.18)};
   --chart-2: ${shift(primary, 0.4)};

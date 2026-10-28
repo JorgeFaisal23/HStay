@@ -22,9 +22,9 @@ export default async function PortalLayout({
   const org = await requireCurrentOrg();
 
   return (
-    <div className="bg-muted/30 flex min-h-svh flex-col">
+    <div className="flex min-h-svh flex-col">
       <SessionMonitor />
-      <header className="bg-background sticky top-0 z-10 border-b">
+      <header className="glass sticky top-0 z-10">
         <div className="mx-auto flex h-14 w-full max-w-4xl items-center gap-3 px-4">
           <Link href="/portal" className="flex items-center gap-2.5">
             <BrandLogo

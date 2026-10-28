@@ -20,7 +20,7 @@ export function AuthCard({
   children: React.ReactNode;
 }) {
   return (
-    <main className="bg-muted/30 flex min-h-svh flex-col items-center justify-center gap-6 p-6">
+    <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-6">
       <div className="flex items-center gap-3">
         {brand ? (
           <>
