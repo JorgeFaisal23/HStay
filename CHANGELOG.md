@@ -9,8 +9,27 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 
 ## [Sin publicar]
 
+## [0.11.0] - 2026-10-27
+
+### Añadido
+- **Propietarios** (B-05): dueños de inmuebles que administra la arrendadora. Rol nuevo `PROPERTY_OWNER` ("Propietario") con cuenta propia (ocupa un usuario contratado) que solo entra a `/propietario`: ve, por cada propiedad suya, lo **pendiente de entregarle**, el detalle por mes (rentas cobradas, reservas, reparaciones, servicios, neto y entregado) y las entregas con su comprobante. No ve nombres de inquilinos ni huéspedes. Cuenta demo `propietario@demo.mx` (Casa Juárez).
+- **Propietarios en el panel** (`/propietarios`): alta, desactivación y restablecimiento de acceso; ficha con el estado de cuenta de cada propiedad, "Registrar entrega" (monto, fecha, forma de pago, referencia, nota y comprobante opcional) y "Deshacer". La ficha de cada propiedad tiene una sección Propietario para asignarlo y elegir desde qué mes se le rinden cuentas.
+- **Regla del pendiente al propietario**: rentas por fecha de pago + reservas por su total en el mes de salida (sin canceladas) − reparaciones aprobadas − servicios incluidos en la renta − entregas, desde el mes de inicio de cuentas. Sin comisión de administración por ahora.
+- **CSV "Cuentas de propietarios"** (Premium) en Reportes → Exportar, con el pendiente al cierre de cada mes.
+- **Fondo de aurora en movimiento** (`AuroraBackground`): olas de luz en los colores del logo de HStay (violeta, azul, cian, magenta y durazno) que se desplazan despacio detrás de toda la app. Solo CSS, sin JavaScript; menos capas en celular y quieta con "reducir movimiento".
+- Tokens `--aurora-*` y `--glass-*`, y utilidades `glass` (tarjetas, encabezados, menú lateral) y `glass-strong` (diálogos, menús, popovers, toasts) en `globals.css`. Sección 16 "Aurora" en `DESIGN.md`.
+- Pruebas: `owner-statement.test.ts`, `owners.int.test.ts` y los casos del rol Propietario en `permissions.test.ts`.
+
+### Seguridad
+- Una entrega no puede rebasar lo pendiente ni ser anterior al inicio de cuentas o futura; se valida bajo un candado por propiedad, así dos capturas simultáneas no lo rebasan. El propietario solo ve propiedades a su nombre y los comprobantes de entregas que se le hicieron; nadie más entra a `/propietario`.
+- Migración `property_owners`: agrega el valor `PROPERTY_OWNER` al rol, `ownerId` y `ownerSince` (opcionales) en `Building` y la tabla `OwnerPayout` con un CHECK de monto positivo; no toca datos existentes.
 ### Cambiado
 - El proyecto pasa a llamarse **HStay**: paquete `hstay` y `NEXT_PUBLIC_APP_NAME=HStay` en `render.yaml`, `docker-compose.yml` y `.env.production.example` (antes "AppRentas"). Los nombres internos de base de datos y servicios (`apprentas`) no cambian.
+- Una propiedad con entregas al propietario no se puede eliminar (como las que tienen contratos, gastos o tareas).
+- **Nuevo sistema visual: vidrio sobre aurora.** Tarjetas, encabezados, menú lateral y capas flotantes son superficies de vidrio translúcido; ningún layout pinta fondo propio. `DESIGN.md` se actualizó (principios, color, layout, elevación, movimiento, modo oscuro, accesibilidad y lista de revisión).
+- **Tema oscuro por defecto.** El claro sigue disponible desde el menú del usuario, con aurora pastel.
+- **Logo del producto**: el distintivo provisional (la "H" sobre `#12263F`) se reemplaza por la "H" del logo de HStay en `AppMark`, el favicon y el manifiesto. `APP.color` pasa a `#6D28D9` (violeta del logo).
+- El acceso muestra la marca en un panel de vidrio sobre la aurora en lugar de la columna de color sólido. `brand-soft` es ahora un tinte translúcido del color de la arrendadora.
 
 ## [0.10.0] - 2026-10-25
 
