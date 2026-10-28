@@ -27,8 +27,9 @@ function env(value: string | undefined, fallback: string) {
 }
 
 /**
- * Colores del logo de HStay. Son los mismos que los tokens --aurora-* de
- * globals.css, en hex porque el favicon y los correos no leen CSS.
+ * Colores del logo de HStay. Los tokens --aurora-* de globals.css parten de
+ * ellos (en oscuro, más apagados para que domine el fondo). Van aquí en hex
+ * porque el favicon y los correos no leen CSS.
  */
 export const APP_LOGO = {
   violet: "#A63BFF",
@@ -37,7 +38,7 @@ export const APP_LOGO = {
   magenta: "#F23FD8",
   peach: "#FF9F5A",
   /** Fondo azul noche de la aurora en oscuro. */
-  night: "#0F1229",
+  night: "#070915",
 } as const;
 
 /** Violeta del logo, oscurecido para que el texto blanco encima pase AA. */

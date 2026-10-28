@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuroraBackground } from "@/components/shared/aurora-background";
 import { Toaster } from "@/components/ui/sonner";
 import { APP } from "@/lib/app";
+import { AURORA_INIT_SCRIPT } from "@/lib/aurora";
 import { brandStyleSheet } from "@/lib/brand";
 import { getCurrentBrand } from "@/lib/org";
 import "./globals.css";
@@ -74,6 +75,9 @@ export default async function RootLayout({
           id="brand-tokens"
           dangerouslySetInnerHTML={{ __html: brandCss }}
         />
+        {/* Intensidad de la aurora que eligió el usuario (en su navegador),
+            aplicada antes del primer pintado para que no parpadee. */}
+        <script dangerouslySetInnerHTML={{ __html: AURORA_INIT_SCRIPT }} />
         {/* Fondo de toda la app (DESIGN.md §16): fijo, detrás de todo. */}
         <AuroraBackground />
         <ThemeProvider>{children}</ThemeProvider>

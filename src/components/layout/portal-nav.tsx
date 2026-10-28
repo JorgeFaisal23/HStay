@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { logout } from "@/app/login/actions";
+import { AuroraMenuGroup } from "@/components/layout/aurora-menu";
 
 export type NavLink = { href: string; label: string };
 
@@ -89,6 +90,8 @@ export function PortalNav({
             ))}
             <DropdownMenuSeparator />
           </div>
+          <AuroraMenuGroup />
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
               void logout();

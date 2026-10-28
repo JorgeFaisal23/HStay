@@ -60,7 +60,7 @@
   --aurora-3: oklch(0.85 0.13 205);
   --aurora-4: oklch(0.74 0.24 330);
   --aurora-5: oklch(0.84 0.12 50);
-  --aurora-opacity: 0.6;
+  --aurora-opacity: 0.55;
   --aurora-blur: 42px;
   --aurora-veil: oklch(0.97 0.02 290 / 22%);
 
@@ -108,15 +108,16 @@
 }
 
 .dark {
-  /* Aurora (oscuro, predeterminado): luz viva sobre azul noche. */
-  --aurora-base: oklch(0.15 0.045 275);
-  --aurora-1: oklch(0.62 0.26 300);
-  --aurora-2: oklch(0.52 0.27 265);
-  --aurora-3: oklch(0.84 0.15 205);
-  --aurora-4: oklch(0.68 0.28 330);
-  --aurora-5: oklch(0.8 0.14 50);
-  --aurora-opacity: 0.9;
-  --aurora-veil: oklch(0.15 0.045 275 / 20%);
+  /* Aurora (oscuro, predeterminado): luz contenida sobre azul noche. Los
+     colores van menos saturados que los del logo para que domine lo oscuro. */
+  --aurora-base: oklch(0.1 0.025 275);
+  --aurora-1: oklch(0.5 0.16 300);
+  --aurora-2: oklch(0.42 0.16 265);
+  --aurora-3: oklch(0.64 0.08 205);
+  --aurora-4: oklch(0.54 0.16 330);
+  --aurora-5: oklch(0.62 0.08 50);
+  --aurora-opacity: 0.55;
+  --aurora-veil: oklch(0.1 0.025 275 / 45%);
 
   /* Vidrio (oscuro). */
   --glass: oklch(0.2 0.035 280 / 58%);
@@ -347,9 +348,21 @@
   position: absolute;
   left: 0;
   width: 200%;
-  opacity: var(--aurora-opacity);
+  opacity: calc(var(--aurora-opacity) * var(--aurora-level, 1));
   will-change: transform;
   animation: aurora-wave linear infinite;
+}
+
+/* Intensidad elegida por el usuario (data-aurora en <html>, ver
+   src/lib/aurora.ts). "normal" es el valor de los tokens tal cual. */
+[data-aurora="soft"] {
+  --aurora-level: 0.5;
+}
+[data-aurora="vivid"] {
+  --aurora-level: 1.5;
+}
+[data-aurora="off"] .aurora-wave {
+  display: none;
 }
 
 .dark .aurora-wave {

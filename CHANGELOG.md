@@ -17,6 +17,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 - **Regla del pendiente al propietario**: rentas por fecha de pago + reservas por su total en el mes de salida (sin canceladas) − reparaciones aprobadas − servicios incluidos en la renta − entregas, desde el mes de inicio de cuentas. Sin comisión de administración por ahora.
 - **CSV "Cuentas de propietarios"** (Premium) en Reportes → Exportar, con el pendiente al cierre de cada mes.
 - **Fondo de aurora en movimiento** (`AuroraBackground`): olas de luz en los colores del logo de HStay (violeta, azul, cian, magenta y durazno) que se desplazan despacio detrás de toda la app. Solo CSS, sin JavaScript; menos capas en celular y quieta con "reducir movimiento".
+- **Intensidad de la aurora a elección del usuario**: en el menú de usuario (panel, portal, Operación y Propietario) se elige Apagada, Tenue, Normal o Viva. Se guarda en el navegador y se aplica antes del primer pintado.
 - Tokens `--aurora-*` y `--glass-*`, y utilidades `glass` (tarjetas, encabezados, menú lateral) y `glass-strong` (diálogos, menús, popovers, toasts) en `globals.css`. Sección 16 "Aurora" en `DESIGN.md`.
 - Pruebas: `owner-statement.test.ts`, `owners.int.test.ts` y los casos del rol Propietario en `permissions.test.ts`.
 
@@ -27,7 +28,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 - El proyecto pasa a llamarse **HStay**: paquete `hstay` y `NEXT_PUBLIC_APP_NAME=HStay` en `render.yaml`, `docker-compose.yml` y `.env.production.example` (antes "AppRentas"). Los nombres internos de base de datos y servicios (`apprentas`) no cambian.
 - Una propiedad con entregas al propietario no se puede eliminar (como las que tienen contratos, gastos o tareas).
 - **Nuevo sistema visual: vidrio sobre aurora.** Tarjetas, encabezados, menú lateral y capas flotantes son superficies de vidrio translúcido; ningún layout pinta fondo propio. `DESIGN.md` se actualizó (principios, color, layout, elevación, movimiento, modo oscuro, accesibilidad y lista de revisión).
-- **Tema oscuro por defecto.** El claro sigue disponible desde el menú del usuario, con aurora pastel.
+- **Tema oscuro por defecto**, con una aurora oscura y poco saturada para que domine el fondo. El claro sigue disponible desde el menú del usuario, con aurora pastel.
 - **Logo del producto**: el distintivo provisional (la "H" sobre `#12263F`) se reemplaza por la "H" del logo de HStay en `AppMark`, el favicon y el manifiesto. `APP.color` pasa a `#6D28D9` (violeta del logo).
 - El acceso muestra la marca en un panel de vidrio sobre la aurora en lugar de la columna de color sólido. `brand-soft` es ahora un tinte translúcido del color de la arrendadora.
 

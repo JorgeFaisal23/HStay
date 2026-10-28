@@ -21,6 +21,7 @@ import { initials } from "@/lib/format";
 import { ROLE_LABELS } from "@/lib/labels";
 import type { Role } from "@/lib/auth/jwt";
 import { logout } from "@/app/login/actions";
+import { AuroraMenuGroup } from "@/components/layout/aurora-menu";
 
 export function UserMenu({
   user,
@@ -80,6 +81,8 @@ export function UserMenu({
               )}
               {isDark ? "Tema claro" : "Tema oscuro"}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <AuroraMenuGroup />
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {

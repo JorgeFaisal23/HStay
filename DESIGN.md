@@ -43,7 +43,7 @@ Todos los colores son tokens definidos en [`src/app/globals.css`](src/app/global
 | Token | Uso |
 |---|---|
 | `--aurora-base` | Color de fondo detrás de la aurora (azul noche en oscuro, lavanda en claro). `--background` apunta a él |
-| `--aurora-1` … `--aurora-5` | Colores del logo: violeta, azul eléctrico, cian, magenta y durazno |
+| `--aurora-1` … `--aurora-5` | Colores del logo: violeta, azul eléctrico, cian, magenta y durazno. En oscuro van con menos saturación y brillo que el logo, para que domine lo oscuro y la aurora se sienta como luz de fondo |
 | `--aurora-opacity` | Intensidad general de las olas (más baja en claro) |
 | `--aurora-veil` | Velo que cubre la aurora para contener el brillo detrás del contenido |
 | `--glass` | Superficie de vidrio de nivel 1: tarjetas, encabezados y menú lateral. `--card` y `--sidebar` apuntan a él |
@@ -380,11 +380,19 @@ El fondo de toda la app es [`AuroraBackground`](src/components/shared/aurora-bac
 - En celular (`max-sm`) se oculta la cuarta ola y se reduce el desenfoque.
 - Con `prefers-reduced-motion` la aurora queda quieta.
 
+**Intensidad elegida por el usuario:**
+
+- Cada persona elige en su menú (panel, portal, Operación y Propietario) entre **Apagada**, **Tenue**, **Normal** y **Viva**. Lo hace [`AuroraMenuGroup`](src/components/layout/aurora-menu.tsx); los niveles y la clave de guardado están en [`src/lib/aurora.ts`](src/lib/aurora.ts).
+- Se guarda en el navegador (como el tema), no en la cuenta. Un script en el layout raíz pone `data-aurora` en `<html>` antes del primer pintado, así no parpadea.
+- En `globals.css`, el nivel multiplica la intensidad (`--aurora-level`: Tenue 0.5, Normal 1, Viva 1.5) y "Apagada" oculta las olas: queda solo el fondo base y el vidrio.
+- Los tokens describen el nivel **Normal**. Para cambiar cuánto separa un nivel de otro se toca `--aurora-level`, no los colores.
+
 **Para ajustar:**
 
 | Quiero… | Toco |
 |---|---|
 | Cambiar colores | `--aurora-1…5` en `globals.css` (claro y oscuro) |
-| Más o menos intensidad | `--aurora-opacity` y `--aurora-veil` |
+| Más o menos intensidad (para todos) | `--aurora-opacity` y `--aurora-veil` |
+| Cuánto cambian Tenue y Viva | `--aurora-level` en `[data-aurora=…]` |
 | Más o menos velocidad | Las duraciones de `.aurora-wave-n` en `globals.css` |
 | Más o menos transparencia del vidrio | `--glass` y `--glass-strong` (revisando el contraste, §14) |
