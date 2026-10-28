@@ -106,6 +106,9 @@ export default async function OrganizationPage({ params }: Params) {
             <p className="text-muted-foreground text-sm tabular-nums">
               {used.owner} {used.owner === 1 ? "dueño" : "dueños"} · {used.staff} de equipo ·{" "}
               {used.tenants} {used.tenants === 1 ? "inquilino" : "inquilinos"}
+              {used.propertyOwners > 0
+                ? ` · ${used.propertyOwners} ${used.propertyOwners === 1 ? "propietario" : "propietarios"}`
+                : null}
             </p>
             {overQuota ? (
               <StatusBadge tone="warning">

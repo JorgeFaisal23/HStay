@@ -8,7 +8,7 @@ import { logAction } from "@/server/actions/audit";
 const PERIOD = /^\d{4}-\d{2}$/;
 
 /**
- * Descarga de reportes en CSV: /reportes/exportar/{pendientes|cobros|gastos}?mes=YYYY-MM.
+ * Descarga de reportes en CSV: /reportes/exportar/{pendientes|cobros|gastos|propietarios}?mes=YYYY-MM.
  *
  * Solo OWNER y ADMIN (el proxy ya deja fuera a consulta e inquilinos) y solo
  * en Premium, como promete /premium. Cada descarga queda en la bitácora: son

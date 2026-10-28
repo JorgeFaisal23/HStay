@@ -20,6 +20,7 @@ export const DEMO_ACCOUNTS: DemoAccount[] = [
   { email: "admin@demo.mx", role: "ADMIN", orgSlug: "demo", orgName: "Rentas del Valle" },
   { email: "consulta@demo.mx", role: "VIEWER", orgSlug: "demo", orgName: "Rentas del Valle" },
   { email: "operacion@demo.mx", role: "OPERATIONS", orgSlug: "demo", orgName: "Rentas del Valle" },
+  { email: "propietario@demo.mx", role: "PROPERTY_OWNER", orgSlug: "demo", orgName: "Rentas del Valle" },
   { email: "inquilino@demo.mx", role: "TENANT", orgSlug: "demo", orgName: "Rentas del Valle" },
   { email: "dueno2@demo.mx", role: "OWNER", orgSlug: "demo2", orgName: "Casa Norte" },
   { email: "inquilino2@demo.mx", role: "TENANT", orgSlug: "demo2", orgName: "Casa Norte" },

@@ -87,6 +87,7 @@ export async function getBuildingDetail(db: OrgDb, buildingId: string) {
   const building = await db.building.findUnique({
     where: { id: buildingId },
     include: {
+      owner: { select: { id: true, name: true, active: true } },
       serviceAccounts: {
         where: { scope: "BUILDING" },
         orderBy: { type: "asc" },
@@ -117,6 +118,8 @@ export async function getBuildingDetail(db: OrgDb, buildingId: string) {
     address: building.address,
     city: building.city,
     notes: building.notes,
+    owner: building.owner,
+    ownerSince: building.ownerSince,
     serviceAccounts: building.serviceAccounts.map((a) => ({
       id: a.id,
       type: a.type,

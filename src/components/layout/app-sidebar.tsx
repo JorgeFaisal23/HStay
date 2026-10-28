@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarRange,
   FileSignature,
+  KeyRound,
   LayoutDashboard,
   ListChecks,
   Palette,
@@ -56,6 +57,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/servicios", label: "Servicios", icon: Receipt },
   { href: "/pagos", label: "Cobros", icon: Banknote },
   { href: "/inquilinos", label: "Inquilinos", icon: Users },
+  { href: "/propietarios", label: "Propietarios", icon: KeyRound },
   { href: "/contratos", label: "Contratos", icon: FileSignature },
   { href: "/equipo", label: "Equipo", icon: Users2 },
   {

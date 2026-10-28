@@ -1,10 +1,11 @@
 import type { OrgDb } from "@/lib/db/scoped";
-import { csvAmount, toCsv } from "@/lib/csv";
+import { csvAmount, toCsv, type CsvCell } from "@/lib/csv";
 import { periodLabel, toNumber } from "@/lib/format";
 import { CHARGE_STATUS_LABELS, EXPENSE_STATUS_LABELS, SERVICE_TYPE_LABELS } from "@/lib/labels";
 import { periodBounds } from "@/lib/payments";
 import { TODAY_GROUPS } from "@/lib/today";
 import { getTodayData } from "@/lib/queries/today";
+import { getOwnersBoard } from "@/lib/queries/owners";
 
 /**
  * Reportes descargables (CSV). Cada uno sale de las mismas consultas y reglas
@@ -15,6 +16,7 @@ export const EXPORTS = {
   pendientes: { title: "Pendientes de hoy", monthly: false },
   cobros: { title: "Cobros del mes", monthly: true },
   gastos: { title: "Gastos de servicios del mes", monthly: true },
+  propietarios: { title: "Cuentas de propietarios", monthly: false },
 } as const;
 
 export type ExportKind = keyof typeof EXPORTS;
@@ -159,6 +161,41 @@ async function expensesCsv(db: OrgDb, period: string) {
   );
 }
 
+/**
+ * Estado de cuenta de cada propiedad con propietario: una fila por mes desde
+ * el inicio de cuentas, con el saldo pendiente al cierre de ese mes.
+ */
+async function ownersCsv(db: OrgDb) {
+  const owners = await getOwnersBoard(db);
+  const rows: CsvCell[][] = [];
+  for (const owner of owners) {
+    for (const building of owner.buildings) {
+      if (!building.statement) continue;
+      let balance = 0;
+      const months = [...building.statement.months].reverse();
+      for (const m of months) {
+        balance += Math.round((m.net - m.payouts) * 100);
+        rows.push([
+          owner.name,
+          building.name,
+          periodLabel(m.period),
+          csvAmount(m.rent),
+          csvAmount(m.bookings),
+          csvAmount(m.repairs),
+          csvAmount(m.services),
+          csvAmount(m.net),
+          csvAmount(m.payouts),
+          csvAmount(balance / 100),
+        ]);
+      }
+    }
+  }
+  return toCsv(
+    ["Propietario", "Propiedad", "Mes", "Rentas cobradas", "Reservas", "Reparaciones", "Servicios", "Neto", "Entregado", "Pendiente al cierre"],
+    rows,
+  );
+}
+
 export async function buildExport(db: OrgDb, kind: ExportKind, period: string) {
   switch (kind) {
     case "pendientes":
@@ -167,5 +204,7 @@ export async function buildExport(db: OrgDb, kind: ExportKind, period: string) {
       return chargesCsv(db, period);
     case "gastos":
       return expensesCsv(db, period);
+    case "propietarios":
+      return ownersCsv(db);
   }
 }

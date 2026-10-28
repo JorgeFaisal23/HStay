@@ -210,6 +210,21 @@ async function seedRentasDelValle(orgId: string, passwordHash: string) {
   );
   console.log(`Usuarios administrativos: ${staff.length}`);
 
+  // Propietario de Casa Juárez: la arrendadora la administra y le rinde cuentas
+  // desde hace tres meses (B-05).
+  const propertyOwner = await prisma.user.create({
+    data: {
+      organizationId: orgId,
+      email: "propietario@demo.mx",
+      name: "Ernesto Salgado",
+      role: "PROPERTY_OWNER",
+      phone: "55 1000 6000",
+      passwordHash,
+    },
+  });
+  const now = new Date();
+  const ownerSince = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+
   // ---------------------------------------------------------- edificios
   const reforma = await prisma.building.create({
     data: {
@@ -228,6 +243,8 @@ async function seedRentasDelValle(orgId: string, passwordHash: string) {
       address: "Calle Juárez 22, Col. Centro",
       city: "Ciudad de México",
       notes: "Cuatro departamentos; dos operan como renta vacacional.",
+      ownerId: propertyOwner.id,
+      ownerSince,
     },
   });
 
@@ -709,8 +726,8 @@ async function main() {
       name: "Rentas del Valle",
       brandName: "Rentas del Valle",
       plan: "PREMIUM",
-      // Dueño, 2 de equipo y 9 inquilinos activos: 12 de 15.
-      maxUsers: 16,
+      // Dueño, 3 de equipo, 1 propietario y 9 inquilinos activos: 14 de 17.
+      maxUsers: 17,
       primaryColor: "#0F766E",
       radius: "SOFT",
       fontFamily: "Inter",
@@ -759,6 +776,7 @@ async function main() {
   console.log("    admin@demo.mx        Administrativo");
   console.log("    consulta@demo.mx     Solo lectura (calendario)");
   console.log("    operacion@demo.mx    Operación (sus tareas)");
+  console.log("    propietario@demo.mx  Propietario de Casa Juárez (estado de cuenta)");
   console.log("    inquilino@demo.mx    Inquilino (portal)");
   console.log("  Casa Norte (slug demo2, gratuito)");
   console.log("    dueno2@demo.mx       Arrendador");

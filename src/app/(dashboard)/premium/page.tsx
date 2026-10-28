@@ -55,7 +55,7 @@ const FEATURES: { group: string; items: Feature[] }[] = [
     items: [
       { name: "Resumen del mes", free: true, premium: true },
       { name: "Reportes de rentabilidad y ocupación", free: false, premium: true },
-      { name: "Exportar pendientes, cobros y gastos a Excel (CSV)", free: false, premium: true },
+      { name: "Exportar pendientes, cobros, gastos y cuentas de propietarios a Excel (CSV)", free: false, premium: true },
       { name: "Exportar a PDF", free: false, premium: true, soon: true },
     ],
   },

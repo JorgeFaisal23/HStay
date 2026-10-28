@@ -113,7 +113,7 @@ async function deletionBlocker(
       ? { OR: [{ buildingId: target.buildingId }, { unit }] }
       : { unitId: target.unitId };
 
-  const [activeLeases, upcomingBookings, leases, bookings, serviceCharges, tasks, expenses] = await Promise.all([
+  const [activeLeases, upcomingBookings, leases, bookings, serviceCharges, tasks, expenses, payouts] = await Promise.all([
     db.lease.count({ where: { unit, status: "ACTIVE" } }),
     db.booking.count({ where: { unit, status: "CONFIRMED", checkOut: { gte: new Date() } } }),
     db.lease.count({ where: { unit } }),
@@ -121,12 +121,13 @@ async function deletionBlocker(
     db.serviceCharge.count({ where: { serviceAccount: accounts } }),
     db.task.count({ where: { unit } }),
     db.expense.count({ where: { unit } }),
+    "buildingId" in target ? db.ownerPayout.count({ where: { buildingId: target.buildingId } }) : 0,
   ]);
 
   if (activeLeases > 0) return "Tiene contratos vigentes. Termínalos antes de eliminar.";
   if (upcomingBookings > 0) return "Tiene reservas próximas. Cancélalas antes de eliminar.";
-  if (leases + bookings + serviceCharges + tasks + expenses > 0) {
-    return "Tiene historial de contratos, reservas, servicios, tareas o gastos, y eliminarla lo borraría. Puedes editarla en su lugar.";
+  if (leases + bookings + serviceCharges + tasks + expenses + payouts > 0) {
+    return "Tiene historial de contratos, reservas, servicios, tareas, gastos o entregas al propietario, y eliminarla lo borraría. Puedes editarla en su lugar.";
   }
   return null;
 }

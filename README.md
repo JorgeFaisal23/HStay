@@ -42,6 +42,7 @@ la cuenta de la plataforma:
 | `admin@demo.mx` | Rentas del Valle | Administrativo | Propiedades, servicios, cobros e inquilinos |
 | `consulta@demo.mx` | Rentas del Valle | Consulta | **Solo lectura**: resumen y calendario |
 | `operacion@demo.mx` | Rentas del Valle | Operación | Solo **sus tareas** de limpieza y reparación (`/operacion`), pensado para celular |
+| `propietario@demo.mx` | Rentas del Valle | Propietario | Solo el **estado de cuenta** de Casa Juárez (`/propietario`): pendiente de entregarle, meses y entregas |
 | `inquilino@demo.mx` | Rentas del Valle | Inquilino | Portal con su contrato, pagos y servicios |
 | `dueno2@demo.mx` | Casa Norte (`demo2`, gratuito) | Arrendador | Lo mismo, sobre sus propios datos |
 | `inquilino2@demo.mx` | Casa Norte | Inquilino | Portal |

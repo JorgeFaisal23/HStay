@@ -73,6 +73,7 @@ model Organization {
   paymentProofs     PaymentProof[]
   tasks             Task[]
   expenses          Expense[]
+  ownerPayouts      OwnerPayout[]
   bookings          Booking[]
   airbnbConnections AirbnbConnection[]
   auditLogs         AuditLog[]
@@ -86,6 +87,7 @@ enum Role {
   ADMIN // personal administrativo
   VIEWER // solo lectura: consulta del calendario
   OPERATIONS // personal de campo: ve y cierra las tareas que se le asignan
+  PROPERTY_OWNER // propietario del inmueble: ve el estado de cuenta de sus propiedades
   TENANT // inquilino o huésped
 }
 
@@ -126,6 +128,10 @@ model User {
   tasksCompleted   Task[]         @relation("TaskCompleter")
   expensesCreated  Expense[]      @relation("ExpenseCreatedBy")
   expensesReviewed Expense[]      @relation("ExpenseReviewedBy")
+  /// Propietario: inmuebles suyos que administra la arrendadora y entregas recibidas.
+  ownedBuildings   Building[]     @relation("BuildingOwner")
+  payoutsReceived  OwnerPayout[]  @relation("PayoutOwner")
+  payoutsRecorded  OwnerPayout[]  @relation("PayoutRecordedBy")
 
   @@index([organizationId, role])
 }
@@ -184,13 +190,20 @@ model Building {
   address        String
   city           String?
   notes          String?
+  /// Propietario del inmueble cuando no es la arrendadora (rol PROPERTY_OWNER).
+  ownerId        String?
+  owner          User?        @relation("BuildingOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  /// Desde cuándo se le rinden cuentas al propietario (primer día de un mes).
+  ownerSince     DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   units           Unit[]
   serviceAccounts ServiceAccount[]
+  payouts         OwnerPayout[]
 
   @@index([organizationId])
+  @@index([ownerId])
 }
 
 model Unit {
@@ -568,6 +581,32 @@ model Expense {
 
   @@index([organizationId, status])
   @@index([organizationId, spentOn])
+}
+
+/// Dinero que la arrendadora le entregó al propietario de una propiedad. Se
+/// registra a mano y resta de lo pendiente (ver src/lib/owner-statement.ts).
+model OwnerPayout {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  buildingId     String
+  building       Building     @relation(fields: [buildingId], references: [id], onDelete: Restrict)
+  /// A quién se le entregó (el propietario de ese momento).
+  ownerId        String
+  owner          User         @relation("PayoutOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  amount         Decimal      @db.Decimal(12, 2)
+  paidOn         DateTime
+  method         String
+  reference      String?
+  /// Comprobante de la transferencia (data URL, como los recibos).
+  receiptUrl     String?
+  notes          String?
+  recordedById   String?
+  recordedBy     User?        @relation("PayoutRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, paidOn])
+  @@index([buildingId])
 }
 
 enum ConnectionStatus {

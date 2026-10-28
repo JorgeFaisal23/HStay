@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, DoorOpen, Plus, Receipt } from "lucide-react";
-import { PageHeader } from "@/components/shared/page-header";
 import { Amount } from "@/components/shared/amount";
+import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ButtonLink } from "@/components/shared/button-link";
@@ -15,9 +15,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getBuildingDetail } from "@/lib/queries/properties";
+import { getOwnerOptions, ownerSinceOptions, statementForBuilding } from "@/lib/queries/owners";
+import { AssignOwnerDialog } from "@/components/owners/assign-owner-dialog";
 import { requireOrgUser } from "@/lib/auth/session";
 import { canEdit } from "@/lib/permissions";
-import { shortDate } from "@/lib/format";
+import { periodKey, periodLabel, shortDate } from "@/lib/format";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { AddServiceDialog } from "@/components/services/add-service-dialog";
 import { ServiceAccountCard } from "@/components/services/service-account-card";
@@ -52,6 +54,11 @@ export default async function BuildingDetailPage({
   if (!building) notFound();
 
   const editable = canEdit(session.role);
+  const { owner, ownerSince } = building;
+  const [ownerOptions, ownerStatement] = await Promise.all([
+    editable ? getOwnerOptions(db) : [],
+    owner && ownerSince ? statementForBuilding(db, { id: building.id, ownerId: owner.id, ownerSince }) : null,
+  ]);
   const occupied = building.units.filter(
     (u) => u.status === "OCCUPIED" || u.status === "SHORT_TERM",
   ).length;
@@ -96,6 +103,46 @@ export default async function BuildingDetailPage({
           ) : null
         }
       />
+
+      {/* ----------------------------------------------------- propietario */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>Propietario</CardTitle>
+              <CardDescription>
+                {owner && ownerSince
+                  ? `${owner.name}${owner.active ? "" : " (acceso desactivado)"} · cuentas desde ${periodLabel(periodKey(ownerSince)).toLowerCase()}.`
+                  : "Es de tu arrendadora. Si pertenece a otra persona, asígnala para rendirle cuentas."}
+              </CardDescription>
+            </div>
+            {editable ? (
+              <AssignOwnerDialog
+                buildingId={building.id}
+                current={owner && ownerSince ? { ownerId: owner.id, since: periodKey(ownerSince) } : null}
+                owners={
+                  owner && !ownerOptions.some((o) => o.id === owner.id)
+                    ? [...ownerOptions, { id: owner.id, name: owner.name }]
+                    : ownerOptions
+                }
+                months={ownerSinceOptions()}
+              />
+            ) : null}
+          </div>
+        </CardHeader>
+        {owner && ownerStatement ? (
+          <CardContent className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm">
+              Pendiente de entregar:{" "}
+              <Amount value={ownerStatement.pending} tone={ownerStatement.pending < 0 ? "danger" : undefined} />
+              {ownerStatement.pending < 0 ? <span className="text-muted-foreground"> (entregado de más)</span> : null}
+            </p>
+            <ButtonLink href={`/propietarios/${owner.id}`} variant="link" size="sm">
+              Ver estado de cuenta
+            </ButtonLink>
+          </CardContent>
+        ) : null}
+      </Card>
 
       {/* ------------------------------------------------------- unidades */}
       <Card>

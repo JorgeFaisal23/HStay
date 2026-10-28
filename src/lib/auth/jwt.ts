@@ -9,7 +9,7 @@ import { SignJWT, jwtVerify } from "jose";
 export const SESSION_COOKIE = "rentas_session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 días
 
-export const ROLES = ["SUPERADMIN", "OWNER", "ADMIN", "VIEWER", "OPERATIONS", "TENANT"] as const;
+export const ROLES = ["SUPERADMIN", "OWNER", "ADMIN", "VIEWER", "OPERATIONS", "PROPERTY_OWNER", "TENANT"] as const;
 export type Role = (typeof ROLES)[number];
 
 /** Roles que pertenecen a una arrendadora (todos menos el de plataforma). */

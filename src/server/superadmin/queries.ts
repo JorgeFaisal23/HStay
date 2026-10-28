@@ -103,10 +103,11 @@ export async function getOrganizationDetail(id: string) {
     })),
     /** Cuentas activas por tipo: cada una ocupa un usuario contratado. */
     activeUsers: {
-      total: activeOf(["OWNER", "ADMIN", "VIEWER", "OPERATIONS", "TENANT"]),
+      total: activeOf(["OWNER", "ADMIN", "VIEWER", "OPERATIONS", "PROPERTY_OWNER", "TENANT"]),
       owner: activeOf(["OWNER"]),
       staff: activeOf(["ADMIN", "VIEWER", "OPERATIONS"]),
       tenants: activeOf(["TENANT"]),
+      propertyOwners: activeOf(["PROPERTY_OWNER"]),
     },
     buildings: _count.buildings,
     units: _count.units,
@@ -143,7 +144,7 @@ async function lockStatus(emails: string[]) {
   return locks;
 }
 
-export const SUPPORT_ROLES = ["OWNER", "ADMIN", "VIEWER", "OPERATIONS", "TENANT"] as const satisfies readonly Role[];
+export const SUPPORT_ROLES = ["OWNER", "ADMIN", "VIEWER", "OPERATIONS", "PROPERTY_OWNER", "TENANT"] as const satisfies readonly Role[];
 export type SupportRole = (typeof SUPPORT_ROLES)[number];
 
 /**

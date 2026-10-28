@@ -61,6 +61,8 @@ export function ExportMenu({
         {months.map((m) => link(`/reportes/exportar/cobros?mes=${m.period}`, `Cobros de ${m.label}`))}
         <DropdownMenuSeparator />
         {months.map((m) => link(`/reportes/exportar/gastos?mes=${m.period}`, `Gastos de ${m.label}`))}
+        <DropdownMenuSeparator />
+        {link("/reportes/exportar/propietarios", "Cuentas de propietarios")}
       </DropdownMenuContent>
     </DropdownMenu>
   );
