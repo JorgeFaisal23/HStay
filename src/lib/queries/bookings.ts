@@ -68,7 +68,7 @@ export async function getBookings(db: OrgDb, filters: BookingFilters) {
       totalAmount: true,
       notes: true,
       unit: {
-        select: { id: true, code: true, building: { select: { id: true, name: true } } },
+        select: { id: true, code: true, building: { select: { id: true, name: true, currency: true } } },
       },
     },
   });
@@ -90,6 +90,7 @@ export async function getBookings(db: OrgDb, filters: BookingFilters) {
     unitCode: b.unit.code,
     buildingId: b.unit.building.id,
     buildingName: b.unit.building.name,
+    currency: b.unit.building.currency,
   }));
 }
 

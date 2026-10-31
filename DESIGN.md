@@ -152,6 +152,8 @@ En una plataforma de rentas el dinero es el dato que el usuario vino a ver, por 
 - **Otros números** (días, porcentajes, conteos) también llevan `tabular-nums`.
 - **Fuera de JSX** (atributos `title`, toasts, descripciones en texto plano) se usan `money()` y `moneyCompact()` de [`src/lib/format.ts`](src/lib/format.ts). Nunca se formatea dinero a mano.
 - **Montos en riesgo:** `tone="danger"` solo junto a un texto que explique el estado ("vencido", "por recuperar").
+- **Moneda:** cada propiedad cobra en una moneda (`Building.currency`: `MXN` o `USD`) y todo monto de esa propiedad, de sus unidades, contratos, reservas, cargos y gastos se pinta en ella: `<Amount value={x} currency={c} />`, `money(x, c)`. Los pesos se ven `$12,345.50` y los dólares `USD 12,345.50` (formato de `es-MX`), así nunca se confunden.
+- **Totales con varias monedas:** nunca se suman pesos con dólares ni se convierten. Un total que junta propiedades se lleva por moneda (`MoneyByCurrency` de [`src/lib/currency.ts`](src/lib/currency.ts)) y se pinta con [`<Amounts>`](src/components/shared/amount.tsx): una cifra por moneda, pesos primero. Si solo hay una moneda se ve igual que un `<Amount>`.
 
 ---
 
@@ -263,7 +265,8 @@ Antes de crear algo, revisa esta tabla. Los primitivos de `src/components/ui/` s
 | Encabezar una pantalla | [`PageHeader`](src/components/shared/page-header.tsx) (título, una línea de propósito, una acción) | `<h1>` suelto |
 | Agrupar contenido | `Card` + `CardHeader/Title/Description/Content` | `div` con borde y sombra |
 | Mostrar un indicador | [`StatCard`](src/components/shared/stat-card.tsx), con tono `default`, `brand` o `danger` | Tarjetas KPI hechas a mano |
-| Mostrar dinero | [`Amount`](src/components/shared/amount.tsx) | `{money(x)}` en JSX |
+| Mostrar dinero | [`Amount`](src/components/shared/amount.tsx) con la `currency` de la propiedad | `{money(x)}` en JSX; montos sin moneda |
+| Mostrar un total de varias propiedades | [`Amounts`](src/components/shared/amount.tsx) con un `MoneyByCurrency` | Sumar pesos con dólares |
 | Mostrar un estado | [`StatusBadge`](src/components/shared/status-badge.tsx) + el tono de `labels.ts` | `Badge` de shadcn o colores sueltos |
 | Avisar, advertir o mostrar un error | [`Callout`](src/components/shared/callout.tsx) (`info`, `warning`, `danger`, `success`; `variant="banner"` para todo el ancho) | Cajas con `bg-*-50` |
 | Mostrar un error de servidor en un formulario | `FormError` (usa `Callout`) | Texto rojo suelto |

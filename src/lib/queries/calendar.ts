@@ -66,7 +66,7 @@ export async function getCalendarData(
         id: true,
         code: true,
         status: true,
-        building: { select: { id: true, name: true } },
+        building: { select: { id: true, name: true, currency: true } },
       },
     }),
     db.lease.findMany({
@@ -105,6 +105,9 @@ export async function getCalendarData(
     }),
   ]);
 
+  // Moneda de cada unidad (la de su propiedad), para los montos de las barras.
+  const unitCurrency = new Map(units.map((u) => [u.id, u.building.currency]));
+
   /** Recorta un intervalo al mes visible y lo expresa en días del mes. */
   function clip(start: Date, end: Date) {
     const startsBefore = start < monthStart;
@@ -134,7 +137,7 @@ export async function getCalendarData(
       endDay,
       continuesBefore: startsBefore,
       continuesAfter: endsAfter,
-      detail: `Contrato de arrendamiento · ${moneyCompact(lease.rentAmount)} al mes`,
+      detail: `Contrato de arrendamiento · ${moneyCompact(lease.rentAmount, unitCurrency.get(lease.unitId))} al mes`,
       href: `/inquilinos/${lease.tenant.id}`,
     });
   }
@@ -151,7 +154,7 @@ export async function getCalendarData(
       kind: booking.source,
       label: booking.guestName,
       ...range,
-      detail: `${booking.guests} ${booking.guests === 1 ? "huésped" : "huéspedes"} · ${moneyCompact(booking.totalAmount)}`,
+      detail: `${booking.guests} ${booking.guests === 1 ? "huésped" : "huéspedes"} · ${moneyCompact(booking.totalAmount, unitCurrency.get(booking.unitId))}`,
       href: `/reservas?reserva=${booking.id}`,
     });
   }

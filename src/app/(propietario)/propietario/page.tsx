@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Building2 } from "lucide-react";
-import { Amount } from "@/components/shared/amount";
+import { Amounts } from "@/components/shared/amount";
+import { totalByCurrency } from "@/lib/currency";
 import { EmptyState } from "@/components/shared/empty-state";
 import { OwnerStatementCard } from "@/components/owners/owner-statement-card";
 import { requireOrgUser } from "@/lib/auth/session";
@@ -16,7 +17,8 @@ export default async function PropertyOwnerHomePage() {
   const { session, db } = await requireOrgUser(["PROPERTY_OWNER"]);
   const buildings = await getMyOwnerAccount(db, session.sub);
   const withStatement = buildings.filter((b) => b.statement);
-  const pending = withStatement.reduce((sum, b) => sum + Math.round(b.statement!.pending * 100), 0) / 100;
+  // Cada propiedad en su moneda: el total se lleva por moneda.
+  const pending = totalByCurrency(withStatement, (b) => b.currency, (b) => b.statement?.pending ?? 0);
   const firstName = session.name.split(" ")[0];
 
   return (
@@ -25,7 +27,7 @@ export default async function PropertyOwnerHomePage() {
         <h1 className="text-2xl font-semibold tracking-tight text-balance">Hola, {firstName}</h1>
         {withStatement.length > 1 ? (
           <p className="text-muted-foreground text-sm text-pretty">
-            Pendiente de entregarte en total: <Amount value={pending} className="text-foreground" />
+            Pendiente de entregarte en total: <Amounts value={pending} className="text-foreground" />
           </p>
         ) : (
           <p className="text-muted-foreground text-sm text-pretty">
@@ -47,6 +49,7 @@ export default async function PropertyOwnerHomePage() {
             title={b.name}
             description={`${b.address}${b.city ? `, ${b.city}` : ""}`}
             statement={b.statement!}
+            currency={b.currency}
             receiptHref={(payoutId) => `/propietario/entregas/${payoutId}/comprobante`}
           />
         ))

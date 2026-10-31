@@ -199,7 +199,7 @@ export default async function BookingsPage({
                       </span>
                     </div>
                     <div className="text-sm sm:text-right">
-                      <Amount value={b.totalAmount} />
+                      <Amount value={b.totalAmount} currency={b.currency} />
                     </div>
                     <div className="flex flex-wrap items-center gap-1 sm:justify-end">
                       <ButtonLink

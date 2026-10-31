@@ -3,7 +3,8 @@ import Link from "next/link";
 import { AlertTriangle, Banknote, CircleDollarSign, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { Amount } from "@/components/shared/amount";
+import { Amount, Amounts } from "@/components/shared/amount";
+import { hasMoney, progressByCurrency, sumMoney } from "@/lib/currency";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -52,8 +53,14 @@ export default async function PaymentsPage({
   const board = await getPaymentsBoard(db, period);
   const editable = canEdit(session.role);
 
-  const progress =
-    board.expected === 0 ? 0 : Math.round((board.collected / board.expected) * 100);
+  // Avance por moneda: no se pueden dividir pesos entre dólares.
+  const progress = progressByCurrency(board.expected, board.collected);
+  const progressHint =
+    progress.length === 0
+      ? "0% del total esperado"
+      : progress.length === 1
+        ? `${progress[0][1]}% del total esperado`
+        : progress.map(([currency, pct]) => `${pct}% en ${currency}`).join(" · ");
 
   return (
     <>
@@ -73,22 +80,22 @@ export default async function PaymentsPage({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label={`Esperado · ${periodLabel(period)}`}
-          value={<Amount value={board.expected} compact />}
+          value={<Amounts value={board.expected} compact />}
           hint={`${board.chargeCount} ${board.chargeCount === 1 ? "cargo" : "cargos"} generados`}
           icon={Wallet}
         />
         <StatCard
           label="Cobrado"
-          value={<Amount value={board.collected} compact />}
-          hint={`${progress}% del total esperado`}
+          value={<Amounts value={board.collected} compact />}
+          hint={progressHint}
           icon={Banknote}
           tone="brand"
         />
         <StatCard
           label="Por cobrar"
-          value={<Amount value={board.pending} compact />}
+          value={<Amounts value={board.pending} compact />}
           hint={
-            board.pending === 0
+            !hasMoney(board.pending)
               ? "Todo cobrado este mes"
               : "Incluye pendientes y vencidos"
           }
@@ -116,25 +123,30 @@ export default async function PaymentsPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-baseline justify-between text-sm">
-                <span className="font-medium">Avance de cobranza</span>
-                <span className="text-muted-foreground tabular-nums">
-                  <Amount value={board.collected} className="text-foreground" /> de{" "}
-                  <Amount value={board.expected} className="font-normal" />
-                </span>
+            {/* Una barra por moneda: pesos y dólares no se mezclan. */}
+            {(progress.length > 0 ? progress : [["MXN", 0] as const]).map(([currency, pct]) => (
+              <div key={currency} className="space-y-2">
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="font-medium">
+                    Avance de cobranza{progress.length > 1 ? ` en ${currency}` : ""}
+                  </span>
+                  <span className="text-muted-foreground tabular-nums">
+                    <Amount value={board.collected[currency] ?? 0} currency={currency} className="text-foreground" /> de{" "}
+                    <Amount value={board.expected[currency] ?? 0} currency={currency} className="font-normal" />
+                  </span>
+                </div>
+                <Progress value={pct} />
               </div>
-              <Progress value={progress} />
-            </div>
+            ))}
             <dl className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border p-3">
                 <dt className="text-muted-foreground text-xs">Gastos del mes</dt>
                 <dd className="mt-1 text-lg">
-                  <Amount value={board.servicesExpense + board.repairsExpense} />
+                  <Amounts value={sumMoney(board.servicesExpense, board.repairsExpense)} />
                 </dd>
                 <dd className="text-muted-foreground text-xs text-pretty">
-                  Servicios <Amount value={board.servicesExpense} className="font-normal" /> · reparaciones aprobadas{" "}
-                  <Amount value={board.repairsExpense} className="font-normal" />.{" "}
+                  Servicios <Amounts value={board.servicesExpense} className="font-normal" /> · reparaciones aprobadas{" "}
+                  <Amounts value={board.repairsExpense} className="font-normal" />.{" "}
                   <Link href={`/servicios?mes=${period}`} className="underline">
                     Ver servicios
                   </Link>
@@ -143,7 +155,7 @@ export default async function PaymentsPage({
               <div className="rounded-lg border p-3">
                 <dt className="text-muted-foreground text-xs">Depósitos en garantía</dt>
                 <dd className="mt-1 text-lg">
-                  <Amount value={board.deposits.total} />
+                  <Amounts value={board.deposits.total} />
                 </dd>
                 <dd className="text-muted-foreground text-xs text-pretty">
                   {board.deposits.leases === 0
@@ -203,10 +215,10 @@ export default async function PaymentsPage({
                   <CardDescription>
                     {building.charges.length}{" "}
                     {building.charges.length === 1 ? "cargo" : "cargos"} ·{" "}
-                    <Amount value={building.collected} className="font-normal" /> cobrados
+                    <Amount value={building.collected} currency={building.currency} className="font-normal" /> cobrados
                   </CardDescription>
                 </div>
-                <Amount value={building.total} className="text-xl tracking-tight" />
+                <Amount value={building.total} currency={building.currency} className="text-xl tracking-tight" />
               </div>
             </CardHeader>
             <CardContent>
@@ -232,21 +244,21 @@ export default async function PaymentsPage({
                       </p>
                       {charge.status === "PARTIAL" ? (
                         <p className="text-muted-foreground text-xs">
-                          Abonado <Amount value={charge.paidAmount} /> de{" "}
-                          <Amount value={charge.amount} />
+                          Abonado <Amount value={charge.paidAmount} currency={building.currency} /> de{" "}
+                          <Amount value={charge.amount} currency={building.currency} />
                         </p>
                       ) : null}
                     </div>
 
                     <div className="flex items-center justify-between gap-3 sm:justify-end">
-                      <Amount value={charge.amount} className="text-sm" />
+                      <Amount value={charge.amount} currency={building.currency} className="text-sm" />
                       <StatusBadge tone={CHARGE_STATUS_TONES[charge.status]}>
                         {CHARGE_STATUS_LABELS[charge.status]}
                       </StatusBadge>
                       {charge.receiptUrl ? (
                         <ReceiptBadge
                           receiptUrl={charge.receiptUrl}
-                          title={`${charge.tenantName} · ${money(charge.amount)}`}
+                          title={`${charge.tenantName} · ${money(charge.amount, building.currency)}`}
                           subtitle={`Unidad ${charge.unitCode} · ${periodLabel(period)}`}
                         />
                       ) : null}
@@ -263,6 +275,7 @@ export default async function PaymentsPage({
                             periodName: periodLabel(period),
                             place: `${building.name} · Unidad ${charge.unitCode}`,
                             remaining: remainingOf(charge.amount, charge.paidAmount),
+                            currency: building.currency,
                           }}
                         />
                       ) : null}
@@ -272,6 +285,7 @@ export default async function PaymentsPage({
                           tenantName={charge.tenantName}
                           amount={charge.amount}
                           paidAmount={charge.paidAmount}
+                          currency={building.currency}
                         />
                       ) : null}
                     </div>

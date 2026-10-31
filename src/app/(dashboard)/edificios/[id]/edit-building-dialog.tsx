@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useFormStatus } from "react-dom";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,40 +18,39 @@ import {
   BuildingFormFields,
   type BuildingDefaults,
 } from "@/components/properties/building-form-fields";
+import { useFormAction } from "@/hooks/use-form-action";
 import { updateBuilding } from "@/server/actions/properties";
-
-function Submit() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Guardando…" : "Guardar cambios"}
-    </Button>
-  );
-}
 
 export function EditBuildingDialog({
   buildingId,
   defaults,
+  currencyLocked,
 }: {
   buildingId: string;
   defaults: BuildingDefaults;
+  /** Por qué ya no se puede cambiar la moneda, si es el caso. */
+  currencyLocked?: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string>();
-
-  async function submit(formData: FormData) {
-    const result = await updateBuilding({}, formData);
-    if (result?.error) {
-      setError(result.error);
-      return;
-    }
-    setError(undefined);
-    setOpen(false);
-    toast.success("Propiedad actualizada.");
-  }
+  // onSubmit en vez de action: si hay un error, lo capturado no se borra.
+  const { onSubmit, pending, error, clearError } = useFormAction(
+    (formData) => updateBuilding({}, formData),
+    {
+      onSuccess: () => {
+        setOpen(false);
+        toast.success("Propiedad actualizada.");
+      },
+    },
+  );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) clearError();
+      }}
+    >
       <DialogTrigger
         render={
           <Button variant="outline">
@@ -62,7 +60,7 @@ export function EditBuildingDialog({
         }
       />
       <DialogContent className="sm:max-w-lg">
-        <form action={submit}>
+        <form onSubmit={onSubmit}>
           <input type="hidden" name="buildingId" value={buildingId} />
           <DialogHeader>
             <DialogTitle>Editar propiedad</DialogTitle>
@@ -73,7 +71,7 @@ export function EditBuildingDialog({
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <BuildingFormFields defaults={defaults} />
+            <BuildingFormFields defaults={defaults} currencyLocked={currencyLocked} />
             <FormError message={error} />
           </div>
 
@@ -81,7 +79,9 @@ export function EditBuildingDialog({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Submit />
+            <Button type="submit" disabled={pending}>
+              {pending ? "Guardando…" : "Guardar cambios"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

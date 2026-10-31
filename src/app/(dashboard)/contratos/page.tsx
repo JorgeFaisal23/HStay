@@ -29,7 +29,7 @@ export default async function ContractsPage() {
       rentAmount: true,
       tenant: { select: { id: true, name: true } },
       unit: {
-        select: { code: true, building: { select: { name: true } } },
+        select: { code: true, building: { select: { name: true, currency: true } } },
       },
     },
   });
@@ -80,7 +80,7 @@ export default async function ContractsPage() {
                         hasta {longDate(lease.endDate)}
                       </p>
                     </div>
-                    <Amount value={toNumber(lease.rentAmount)} className="text-sm" />
+                    <Amount value={toNumber(lease.rentAmount)} currency={lease.unit.building.currency} className="text-sm" />
                   </Link>
                 </li>
               ))}

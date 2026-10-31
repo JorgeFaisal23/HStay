@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useFormStatus } from "react-dom";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,38 +15,30 @@ import {
 } from "@/components/ui/dialog";
 import { FormError } from "@/components/shared/form-field";
 import { BuildingFormFields } from "@/components/properties/building-form-fields";
+import { useFormAction } from "@/hooks/use-form-action";
 import { createBuilding } from "@/server/actions/properties";
-
-function Submit() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Guardando…" : "Guardar propiedad"}
-    </Button>
-  );
-}
 
 export function NewBuildingDialog() {
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string>();
-
-  // La acción se envuelve en lugar de reaccionar a su resultado con un
-  // efecto: cerrar el diálogo y avisar son consecuencias directas de
-  // enviar el formulario, no de un cambio de estado posterior.
-  async function submit(formData: FormData) {
-    const result = await createBuilding({}, formData);
-    if (result?.error) {
-      setError(result.error);
-      return;
-    }
-    setError(undefined);
-    setOpen(false);
-    toast.success("Propiedad registrada.");
-  }
-
+  // onSubmit en vez de action: si hay un error, lo capturado no se borra.
+  const { onSubmit, pending, error, clearError } = useFormAction(
+    (formData) => createBuilding({}, formData),
+    {
+      onSuccess: () => {
+        setOpen(false);
+        toast.success("Propiedad registrada.");
+      },
+    },
+  );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) clearError();
+      }}
+    >
       <DialogTrigger
         render={
           <Button>
@@ -57,7 +48,7 @@ export function NewBuildingDialog() {
         }
       />
       <DialogContent className="sm:max-w-lg">
-        <form action={submit}>
+        <form onSubmit={onSubmit}>
           <DialogHeader>
             <DialogTitle>Nueva propiedad</DialogTitle>
             <DialogDescription>
@@ -80,7 +71,9 @@ export function NewBuildingDialog() {
             >
               Cancelar
             </Button>
-            <Submit />
+            <Button type="submit" disabled={pending}>
+              {pending ? "Guardando…" : "Guardar propiedad"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

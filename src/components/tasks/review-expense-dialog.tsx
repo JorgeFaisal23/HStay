@@ -118,7 +118,7 @@ export function ReviewExpenseDialog({ expense }: { expense: ExpenseToReview }) {
             <div>
               <dt className="text-muted-foreground text-xs">Costo capturado</dt>
               <dd>
-                <Amount value={expense.amount} />
+                <Amount value={expense.amount} currency={expense.currency} />
               </dd>
             </div>
             <div>
@@ -155,7 +155,7 @@ export function ReviewExpenseDialog({ expense }: { expense: ExpenseToReview }) {
               </Field>
               {adjusted ? (
                 <Callout tone="info">
-                  Aprobarás {Number.isFinite(finalAmount) ? money(finalAmount) : "otro monto"}; se capturó {money(expense.amount)}.
+                  Aprobarás {Number.isFinite(finalAmount) ? money(finalAmount, expense.currency) : "otro monto"}; se capturó {money(expense.amount, expense.currency)}.
                 </Callout>
               ) : null}
             </>

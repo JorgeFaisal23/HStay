@@ -84,6 +84,7 @@ export default async function PortalHomePage() {
                   <p className="text-muted-foreground text-xs">Tu renta mensual</p>
                   <Amount
                     value={data.lease.rentAmount}
+                    currency={data.currency}
                     className="text-3xl tracking-tight"
                   />
                 </div>
@@ -135,7 +136,7 @@ export default async function PortalHomePage() {
                   label="Depósito en garantía"
                   value={
                     data.lease.depositAmount
-                      ? money(data.lease.depositAmount)
+                      ? money(data.lease.depositAmount, data.currency)
                       : "—"
                   }
                 />
@@ -169,6 +170,7 @@ export default async function PortalHomePage() {
                     </p>
                     <Amount
                       value={data.nextCharge.amount - data.nextCharge.paidAmount}
+                      currency={data.currency}
                       className="block text-2xl tracking-tight"
                     />
                   </div>
@@ -187,6 +189,7 @@ export default async function PortalHomePage() {
                         chargeId={data.nextCharge.id}
                         periodName={periodLabel(data.nextCharge.period)}
                         remaining={data.nextCharge.amount - data.nextCharge.paidAmount}
+                        currency={data.currency}
                         resend={data.nextCharge.lastProof?.status === "REJECTED"}
                         variant="default"
                       />
@@ -240,7 +243,7 @@ export default async function PortalHomePage() {
               />
               <Detail
                 label="Total de la estancia"
-                value={money(data.booking.totalAmount)}
+                value={money(data.booking.totalAmount, data.currency)}
               />
               <Detail
                 label="Reservado por"
@@ -269,7 +272,7 @@ export default async function PortalHomePage() {
             <CardDescription>De un contrato anterior.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-center justify-between gap-4">
-            <Amount value={data.balance} className="text-2xl" tone="danger" />
+            <Amount value={data.balance} currency={data.currency} className="text-2xl" tone="danger" />
             <ButtonLink href="/portal/pagos" variant="outline" size="sm">
               Ver detalle
             </ButtonLink>

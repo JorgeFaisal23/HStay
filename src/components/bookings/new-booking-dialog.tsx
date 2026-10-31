@@ -21,6 +21,7 @@ import { localDateInput } from "@/components/leases/lease-terms-fields";
 import { useFormAction } from "@/hooks/use-form-action";
 import { createBooking, updateBooking } from "@/server/actions/bookings";
 import { money } from "@/lib/format";
+import type { Currency } from "@/lib/currency";
 import { quoteLabel, quoteStay, type StayRates } from "@/lib/rates";
 
 export type BookableUnit = {
@@ -28,6 +29,8 @@ export type BookableUnit = {
   label: string;
   /** Tarifas de estancia, para sugerir el total (ver src/lib/rates.ts). */
   rates: StayRates;
+  /** Moneda de la propiedad: la del total y las tarifas. */
+  currency: Currency;
 };
 
 /** Datos de una reserva existente para el diálogo de edición. */
@@ -280,14 +283,14 @@ function BookingDialog({
                 />
               </Field>
               <Field
-                label="Total de la estancia"
+                label={`Total de la estancia${unit ? ` (${unit.currency})` : ""}`}
                 htmlFor={id("totalAmount")}
                 required
                 hint={
                   nights === 0
                     ? undefined
                     : quote
-                      ? `${nights} ${nights === 1 ? "noche" : "noches"}: ${quoteLabel(quote)} = ${money(quote.total)}.`
+                      ? `${nights} ${nights === 1 ? "noche" : "noches"}: ${quoteLabel(quote)} = ${money(quote.total, unit?.currency)}.`
                       : `${nights} ${nights === 1 ? "noche" : "noches"}. La unidad no tiene tarifas de estancia: escribe el total.`
                 }
               >

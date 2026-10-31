@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/shared/form-field";
 import { money } from "@/lib/format";
+import type { Currency } from "@/lib/currency";
 import { PAYMENT_METHODS } from "@/lib/payment-methods";
 import { ReceiptPicker } from "@/components/payments/receipt-picker";
 import { markChargeUnpaid, registerPayment } from "@/server/actions/payments";
@@ -42,11 +43,14 @@ export function PaymentRowActions({
   tenantName,
   amount,
   paidAmount,
+  currency = "MXN",
 }: {
   chargeId: string;
   tenantName: string;
   amount: number;
   paidAmount: number;
+  /** Moneda de la propiedad del cargo. */
+  currency?: Currency;
 }) {
   const remaining = remainingOf(amount, paidAmount);
   return (
@@ -59,6 +63,7 @@ export function PaymentRowActions({
           amount={amount}
           remaining={remaining}
           partial={paidAmount > 0}
+          currency={currency}
         />
       ) : null}
     </div>
@@ -128,12 +133,15 @@ export function RegisterPaymentDialog({
   partial,
   variant = "default",
   iconOnlyOnMobile = true,
+  currency = "MXN",
 }: {
   chargeId: string;
   tenantName: string;
   amount: number;
   remaining: number;
   partial: boolean;
+  /** Moneda de la propiedad del cargo. */
+  currency?: Currency;
   variant?: "default" | "outline";
   iconOnlyOnMobile?: boolean;
 }) {
@@ -175,8 +183,8 @@ export function RegisterPaymentDialog({
         <DialogHeader>
           <DialogTitle>Registrar pago</DialogTitle>
           <DialogDescription>
-            {tenantName} · cargo de {money(amount)}
-            {partial ? ` · faltan ${money(remaining)}` : ""}
+            {tenantName} · cargo de {money(amount, currency)}
+            {partial ? ` · faltan ${money(remaining, currency)}` : ""}
           </DialogDescription>
         </DialogHeader>
 

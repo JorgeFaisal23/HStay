@@ -66,6 +66,7 @@ export default async function OwnerDetailPage({ params }: { params: Promise<{ id
               title={b.name}
               description={`${b.units} ${b.units === 1 ? "unidad" : "unidades"}`}
               statement={b.statement}
+              currency={b.currency}
               receiptHref={(payoutId) => `/propietarios/entregas/${payoutId}/comprobante`}
               actions={
                 <>
@@ -77,6 +78,7 @@ export default async function OwnerDetailPage({ params }: { params: Promise<{ id
                     buildingName={b.name}
                     ownerName={owner.name}
                     pending={b.statement.pending}
+                    currency={b.currency}
                     variant={single ? "default" : "outline"}
                   />
                 </>
@@ -84,7 +86,7 @@ export default async function OwnerDetailPage({ params }: { params: Promise<{ id
               payoutAction={(payout) => (
                 <UndoPayoutButton
                   payoutId={payout.id}
-                  description={`${money(payout.amount)} del ${shortDate(payout.paidOn)}`}
+                  description={`${money(payout.amount, b.currency)} del ${shortDate(payout.paidOn)}`}
                 />
               )}
             />

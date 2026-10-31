@@ -8,6 +8,27 @@ import { toNumber, periodKey } from "@/lib/format";
  * serialización.
  */
 
+/**
+ * Por qué ya no se puede cambiar la moneda de una propiedad, o null si se
+ * puede. Con montos guardados, cambiarla los reinterpretaría (10,000 pesos
+ * pasarían a ser 10,000 dólares), así que solo se elige mientras no haya
+ * dinero registrado.
+ */
+export async function currencyLockReason(db: OrgDb, buildingId: string): Promise<string | null> {
+  const unit = { buildingId };
+  const [leases, bookings, serviceCharges, expenses, payouts] = await Promise.all([
+    db.lease.count({ where: { unit } }),
+    db.booking.count({ where: { unit } }),
+    db.serviceCharge.count({
+      where: { serviceAccount: { OR: [{ buildingId }, { unit }] } },
+    }),
+    db.expense.count({ where: { unit } }),
+    db.ownerPayout.count({ where: { buildingId } }),
+  ]);
+  if (leases + bookings + serviceCharges + expenses + payouts === 0) return null;
+  return "Ya tiene contratos, reservas, cargos o gastos registrados en esta moneda; cambiarla cambiaría el valor de esos montos.";
+}
+
 export async function getBuildingsOverview(db: OrgDb) {
   const now = new Date();
   const period = periodKey(now);
@@ -68,6 +89,7 @@ export async function getBuildingsOverview(db: OrgDb) {
       address: building.address,
       city: building.city,
       notes: building.notes,
+      currency: building.currency,
       totalUnits: total,
       occupiedUnits: occupied,
       availableUnits: building.units.filter((u) => u.status === "AVAILABLE").length,
@@ -118,6 +140,7 @@ export async function getBuildingDetail(db: OrgDb, buildingId: string) {
     address: building.address,
     city: building.city,
     notes: building.notes,
+    currency: building.currency,
     owner: building.owner,
     ownerSince: building.ownerSince,
     serviceAccounts: building.serviceAccounts.map((a) => ({
@@ -140,6 +163,7 @@ export async function getBuildingDetail(db: OrgDb, buildingId: string) {
         floor: unit.floor,
         sizeM2: unit.sizeM2,
         baseRent: toNumber(unit.baseRent),
+        nightlyRate: unit.nightlyRate === null ? null : toNumber(unit.nightlyRate),
         tenantName: lease?.tenant.name ?? null,
         tenantId: lease?.tenant.id ?? null,
         leaseEndDate: lease?.endDate ?? null,
@@ -197,6 +221,7 @@ export async function getUnitDetail(db: OrgDb, unitId: string) {
     sizeM2: unit.sizeM2,
     baseRent: toNumber(unit.baseRent),
     rates: stayRatesOf(unit),
+    currency: unit.building.currency,
     description: unit.description,
     building: {
       id: unit.building.id,
@@ -272,8 +297,9 @@ export async function getUnitDetail(db: OrgDb, unitId: string) {
 }
 
 export async function getBuildingsForSelect(db: OrgDb) {
+  // Con la moneda: el formulario de unidad la muestra junto a la renta.
   return db.building.findMany({
-    select: { id: true, name: true },
+    select: { id: true, name: true, currency: true },
     orderBy: { name: "asc" },
   });
 }
@@ -289,7 +315,7 @@ export async function getBookableUnits(db: OrgDb) {
       nightlyRate: true,
       weeklyRate: true,
       monthlyRate: true,
-      building: { select: { name: true } },
+      building: { select: { name: true, currency: true } },
     },
   });
 
@@ -297,6 +323,7 @@ export async function getBookableUnits(db: OrgDb) {
     id: unit.id,
     label: `${unit.building.name} · ${unit.code}`,
     rates: stayRatesOf(unit),
+    currency: unit.building.currency,
   }));
 }
 

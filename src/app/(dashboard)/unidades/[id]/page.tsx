@@ -104,8 +104,8 @@ export default async function UnitPage({
         title={`Unidad ${unit.code}`}
         description={`${UNIT_TYPE_LABELS[unit.type]} en ${unit.building.name} · ${
           isShortTerm && unit.rates.nightly !== null
-            ? `${money(unit.rates.nightly)} por noche`
-            : `${money(unit.baseRent)} al mes`
+            ? `${money(unit.rates.nightly, unit.currency)} por noche`
+            : `${money(unit.baseRent, unit.currency)} al mes`
         }.`}
         action={
           editable ? (
@@ -194,7 +194,7 @@ export default async function UnitPage({
                 <div>
                   <dt className="text-muted-foreground text-xs">Renta mensual</dt>
                   <dd className="mt-0.5 text-lg">
-                    <Amount value={unit.baseRent} />
+                    <Amount value={unit.baseRent} currency={unit.currency} />
                   </dd>
                 </div>
                 {(
@@ -210,7 +210,7 @@ export default async function UnitPage({
                       {value === null ? (
                         <span className="text-muted-foreground text-sm">Sin tarifa</span>
                       ) : (
-                        <Amount value={value} />
+                        <Amount value={value} currency={unit.currency} />
                       )}
                     </dd>
                   </div>
@@ -345,7 +345,7 @@ export default async function UnitPage({
                   {editable ? (
                     <NewBookingDialog
                       unitId={unit.id}
-                      units={[{ id: unit.id, label: unit.code, rates: unit.rates }]}
+                      units={[{ id: unit.id, label: unit.code, rates: unit.rates, currency: unit.currency }]}
                     />
                   ) : null}
                 </div>
@@ -381,13 +381,13 @@ export default async function UnitPage({
                               {shortDate(booking.checkOut)}
                             </p>
                             <p className="text-muted-foreground text-xs">
-                              <Amount value={booking.totalAmount} className="font-normal" />
+                              <Amount value={booking.totalAmount} currency={unit.currency} className="font-normal" />
                             </p>
                           </div>
                           {editable && booking.source !== "AIRBNB" ? (
                             <>
                               <EditBookingDialog
-                                units={[{ id: unit.id, label: unit.code, rates: unit.rates }]}
+                                units={[{ id: unit.id, label: unit.code, rates: unit.rates, currency: unit.currency }]}
                                 booking={{
                                   id: booking.id,
                                   unitId: unit.id,
@@ -451,7 +451,7 @@ export default async function UnitPage({
                 <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   <Detail label="Inicio" value={longDate(lease.startDate)} />
                   <Detail label="Vencimiento" value={longDate(lease.endDate)} />
-                  <Detail label="Renta" value={money(lease.rentAmount)} />
+                  <Detail label="Renta" value={money(lease.rentAmount, unit.currency)} />
                   <Detail
                     label="Día de pago"
                     value={`Día ${lease.paymentDay} de cada mes`}
@@ -547,7 +547,7 @@ export default async function UnitPage({
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Amount value={charge.amount} className="text-sm font-medium" />
+                        <Amount value={charge.amount} currency={unit.currency} className="text-sm font-medium" />
                         <StatusBadge tone={CHARGE_STATUS_TONES[charge.status]}>
                           {CHARGE_STATUS_LABELS[charge.status]}
                         </StatusBadge>

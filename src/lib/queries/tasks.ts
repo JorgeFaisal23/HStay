@@ -11,7 +11,7 @@ import { startOfToday } from "@/lib/payments";
 const unitSelect = {
   id: true,
   code: true,
-  building: { select: { name: true, address: true } },
+  building: { select: { name: true, address: true, currency: true } },
 } as const;
 
 /** Quién puede tener tareas asignadas: Operación y el equipo, con acceso activo. */

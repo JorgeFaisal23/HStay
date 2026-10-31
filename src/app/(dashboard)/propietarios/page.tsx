@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
-import { Amount } from "@/components/shared/amount";
+import { Amounts } from "@/components/shared/amount";
+import { anyNegative } from "@/lib/currency";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { UserQuotaNote } from "@/components/shared/user-quota-note";
@@ -67,9 +68,9 @@ export default async function OwnersPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     {owner.buildings.length > 0 ? (
                       <span className="text-right text-sm">
-                        <Amount value={owner.pending} tone={owner.pending < 0 ? "danger" : undefined} />
+                        <Amounts value={owner.pending} tone={anyNegative(owner.pending) ? "danger" : undefined} />
                         <span className="text-muted-foreground block text-xs">
-                          {owner.pending < 0 ? "entregado de más" : "por entregar"}
+                          {anyNegative(owner.pending) ? "con entregas de más" : "por entregar"}
                         </span>
                       </span>
                     ) : null}

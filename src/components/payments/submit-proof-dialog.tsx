@@ -20,6 +20,7 @@ import { Field, FormError, NativeSelect } from "@/components/shared/form-field";
 import { ReceiptPicker } from "@/components/payments/receipt-picker";
 import { localDateInput } from "@/components/leases/lease-terms-fields";
 import { money } from "@/lib/format";
+import type { Currency } from "@/lib/currency";
 import { PAYMENT_METHODS } from "@/lib/payment-methods";
 import { submitPaymentProof } from "@/server/actions/proofs";
 
@@ -34,8 +35,11 @@ export function SubmitProofDialog({
   remaining,
   resend = false,
   variant = "outline",
+  currency = "MXN",
 }: {
   chargeId: string;
+  /** Moneda de la propiedad del contrato. */
+  currency?: Currency;
   periodName: string;
   /** Lo que falta por pagar del cargo. */
   remaining: number;
@@ -85,7 +89,7 @@ export function SubmitProofDialog({
         <DialogHeader>
           <DialogTitle>Enviar comprobante</DialogTitle>
           <DialogDescription>
-            Renta de {periodName.toLowerCase()} · faltan {money(remaining)}
+            Renta de {periodName.toLowerCase()} · faltan {money(remaining, currency)}
           </DialogDescription>
         </DialogHeader>
 

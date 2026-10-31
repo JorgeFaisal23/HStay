@@ -1,4 +1,5 @@
 import type { OrgDb } from "@/lib/db/scoped";
+import { totalByCurrency, type Currency } from "@/lib/currency";
 import { periodKey, periodToDate, shiftPeriod, toNumber } from "@/lib/format";
 import { buildOwnerStatement, type StatementMovement } from "@/lib/owner-statement";
 
@@ -83,6 +84,7 @@ const buildingSelect = {
   name: true,
   address: true,
   city: true,
+  currency: true,
   ownerId: true,
   ownerSince: true,
   _count: { select: { units: true } },
@@ -93,6 +95,7 @@ type OwnedBuilding = {
   name: string;
   address: string;
   city: string | null;
+  currency: Currency;
   ownerId: string | null;
   ownerSince: Date | null;
   _count: { units: number };
@@ -129,7 +132,8 @@ export async function getOwnersBoard(db: OrgDb) {
   return Promise.all(
     owners.map(async ({ ownedBuildings, ...owner }) => {
       const buildings = await withStatements(db, ownedBuildings);
-      const pending = buildings.reduce((sum, b) => sum + Math.round((b.statement?.pending ?? 0) * 100), 0) / 100;
+      // Cada propiedad rinde cuentas en su moneda: el total se lleva por moneda.
+      const pending = totalByCurrency(buildings, (b) => b.currency, (b) => b.statement?.pending ?? 0);
       return { ...owner, buildings, pending };
     }),
   );

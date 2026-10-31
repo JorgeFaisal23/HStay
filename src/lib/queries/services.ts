@@ -1,4 +1,5 @@
 import type { OrgDb } from "@/lib/db/scoped";
+import { ACCOUNT_CURRENCY, accountCurrency, addMoney, totalByCurrency, type MoneyByCurrency } from "@/lib/currency";
 import { toNumber, shiftPeriod } from "@/lib/format";
 import { allocate } from "@/lib/services/allocation";
 import type { ServiceType } from "@/generated/prisma/enums";
@@ -46,7 +47,7 @@ export async function getServicesBoard(db: OrgDb, period: string) {
     }),
     db.serviceCharge.findMany({
       where: { period: previousPeriod },
-      select: { amount: true },
+      select: { amount: true, serviceAccount: { select: ACCOUNT_CURRENCY } },
     }),
   ]);
 
@@ -59,7 +60,8 @@ export async function getServicesBoard(db: OrgDb, period: string) {
   }
   const columns = SERVICE_TYPE_ORDER.filter((type) => usedTypes.has(type));
 
-  let grandTotal = 0;
+  // Cada propiedad suma en su moneda; el total general se lleva por moneda.
+  let grandTotal: MoneyByCurrency = {};
   let missingCount = 0;
   let totalAccounts = 0;
 
@@ -129,11 +131,12 @@ export async function getServicesBoard(db: OrgDb, period: string) {
 
     const unitsTotal = units.reduce((sum, u) => sum + u.total, 0);
     const total = unitsTotal + buildingLevelTotal;
-    grandTotal += total;
+    grandTotal = addMoney(grandTotal, building.currency, total);
 
     return {
       id: building.id,
       name: building.name,
+      currency: building.currency,
       buildingAccounts,
       buildingLevelTotal,
       units,
@@ -142,9 +145,10 @@ export async function getServicesBoard(db: OrgDb, period: string) {
     };
   });
 
-  const previousTotal = previousCharges.reduce(
-    (sum, c) => sum + toNumber(c.amount),
-    0,
+  const previousTotal = totalByCurrency(
+    previousCharges,
+    (c) => accountCurrency(c.serviceAccount),
+    (c) => toNumber(c.amount),
   );
 
   return {

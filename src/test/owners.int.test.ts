@@ -214,7 +214,8 @@ describe("estado de cuenta", () => {
   it("el tablero del equipo suma lo pendiente por propietario", async () => {
     const board = await getOwnersBoard(createOrgDb(a.organizationId));
     const row = board.find((o) => o.id === ownerA.id)!;
-    expect(row.pending).toBe(EXPECTED_PENDING);
+    // Lo pendiente se lleva por moneda; sus propiedades están en pesos.
+    expect(row.pending).toEqual({ MXN: EXPECTED_PENDING });
     expect(board.every((o) => o.id !== ownerB.id)).toBe(true);
   });
 
@@ -223,7 +224,7 @@ describe("estado de cuenta", () => {
     const lines = csv.trim().split("\r\n");
     expect(lines[0]).toContain("Pendiente al cierre");
     const october = lines.find((l) => l.includes("Octubre 2026"))!;
-    expect(october.endsWith(`,${EXPECTED_PENDING}`)).toBe(true);
+    expect(october.endsWith(`,${EXPECTED_PENDING},MXN`)).toBe(true);
     expect(csv).not.toContain(`Propietario ${b.org.slug}`);
   });
 });

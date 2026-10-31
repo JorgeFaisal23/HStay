@@ -26,7 +26,7 @@ export async function getTenants(db: OrgDb) {
             select: {
               id: true,
               code: true,
-              building: { select: { name: true } },
+              building: { select: { name: true, currency: true } },
             },
           },
           rentCharges: {
@@ -54,6 +54,7 @@ export async function getTenants(db: OrgDb) {
       unitId: lease?.unit.id ?? null,
       buildingName: lease?.unit.building.name ?? null,
       rentAmount: lease ? toNumber(lease.rentAmount) : null,
+      currency: lease?.unit.building.currency ?? "MXN",
       endDate: lease?.endDate ?? null,
       daysLeft: lease ? daysBetween(now, lease.endDate) : null,
       currentChargeStatus: charge?.status ?? null,
@@ -89,7 +90,7 @@ export async function getTenantDetail(db: OrgDb, tenantId: string) {
               id: true,
               code: true,
               baseRent: true,
-              building: { select: { id: true, name: true, address: true } },
+              building: { select: { id: true, name: true, address: true, currency: true } },
               serviceAccounts: {
                 select: {
                   type: true,
@@ -141,6 +142,7 @@ export async function getTenantDetail(db: OrgDb, tenantId: string) {
           rentAmount: toNumber(activeLease.rentAmount),
           depositAmount: toNumber(activeLease.depositAmount),
           paymentDay: activeLease.paymentDay,
+          currency: activeLease.unit.building.currency,
           daysLeft: daysBetween(new Date(), activeLease.endDate),
           unit: {
             id: activeLease.unit.id,
@@ -174,6 +176,7 @@ export async function getTenantDetail(db: OrgDb, tenantId: string) {
           receiptUrl: c.receiptUrl,
           unitCode: l.unit.code,
           current: l.status === "ACTIVE",
+          currency: l.unit.building.currency,
         })),
       )
       .sort((x, y) => y.period.localeCompare(x.period)),
@@ -203,7 +206,7 @@ export async function getAssignableUnits(db: OrgDb) {
       id: true,
       code: true,
       baseRent: true,
-      building: { select: { name: true } },
+      building: { select: { name: true, currency: true } },
     },
   });
 
@@ -212,6 +215,7 @@ export async function getAssignableUnits(db: OrgDb) {
     code: unit.code,
     buildingName: unit.building.name,
     baseRent: toNumber(unit.baseRent),
+    currency: unit.building.currency,
   }));
 }
 

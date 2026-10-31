@@ -255,7 +255,14 @@ export async function completeTask(
 
   const task = await db.task.findUnique({
     where: { id: taskId },
-    select: { kind: true, status: true, unitId: true, title: true, assigneeId: true },
+    select: {
+      kind: true,
+      status: true,
+      unitId: true,
+      title: true,
+      assigneeId: true,
+      unit: { select: { building: { select: { currency: true } } } },
+    },
   });
   // Operación solo ve y cierra lo suyo: una tarea ajena responde como inexistente.
   if (!task || (session.role === "OPERATIONS" && task.assigneeId !== session.sub)) {
@@ -315,7 +322,7 @@ export async function completeTask(
     task.kind === "CLEANING" ? "Limpieza hecha" : "Reparación cerrada",
     "Task",
     taskId,
-    `${task.title}${cost > 0 ? ` · gasto por aprobar ${money(cost)}` : ""}`,
+    `${task.title}${cost > 0 ? ` · gasto por aprobar ${money(cost, task.unit.building.currency)}` : ""}`,
   );
   refreshTasks(task.unitId);
   return { ok: true };

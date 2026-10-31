@@ -1,6 +1,7 @@
 import type { Tone } from "@/lib/labels";
 import { startOfToday } from "@/lib/payments";
 import { daysBetween } from "@/lib/format";
+import type { Currency } from "@/lib/currency";
 
 /**
  * "Hoy": lo que necesita atención, armado a partir de los datos.
@@ -52,6 +53,8 @@ export type ProofToReview = {
   paidOn: Date;
   /** Lo que falta por pagar del cargo: tope del monto a aprobar. */
   remaining: number;
+  /** Moneda de la propiedad del cargo. */
+  currency?: Currency;
 };
 
 /** Lo que necesita el diálogo de aprobación de un gasto. */
@@ -66,6 +69,8 @@ export type ExpenseToReview = {
   notes: string | null;
   taskId: string | null;
   hasDonePhoto: boolean;
+  /** Moneda de la propiedad del gasto. */
+  currency?: Currency;
 };
 
 /** A qué se le asigna responsable: una tarea que ya existe o la limpieza de una reserva. */
@@ -74,7 +79,7 @@ export type AssignTarget =
   | { type: "cleaning"; bookingId: string; title: string; assigneeId: string | null };
 
 export type TodayAction =
-  | { kind: "payment"; chargeId: string; tenantName: string; amount: number; paidAmount: number }
+  | { kind: "payment"; chargeId: string; tenantName: string; amount: number; paidAmount: number; currency?: Currency }
   | { kind: "review"; proof: ProofToReview }
   | { kind: "assign"; target: AssignTarget }
   | { kind: "expense"; expense: ExpenseToReview }
@@ -111,12 +116,15 @@ export type TodayItem = {
   when?: string;
   /** Monto en juego (lo que falta por cobrar, o lo que declara un comprobante). */
   amount?: number;
+  /** Moneda de `amount`: la de la propiedad. */
+  currency?: Currency;
   amountLabel?: string;
   note?: string;
   action: TodayAction;
 };
 
-type Place = { unitId: string; unitCode: string; buildingName: string };
+/** Unidad del pendiente; `currency` es la de su propiedad (pesos si falta). */
+type Place = { unitId: string; unitCode: string; buildingName: string; currency?: Currency };
 
 export type TodayInput = {
   /** Periodo en curso, "YYYY-MM". */
@@ -235,6 +243,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
       dateKind: "event",
       datePrefix: "Enviado",
       amount: proof.amount,
+      currency: proof.currency,
       amountLabel: "Declara",
       note: `${proof.method}${proof.reference ? ` · ${proof.reference}` : ""}. El pago no cuenta hasta que lo apruebes.`,
       action: {
@@ -249,6 +258,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
           reference: proof.reference,
           paidOn: proof.paidOn,
           remaining: proof.remaining,
+          currency: proof.currency,
         },
       },
     });
@@ -267,6 +277,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
       days: dayOffset(charge.dueDate, today),
       dateKind: "deadline",
       amount: Math.max(0, charge.amount - charge.paidAmount),
+      currency: charge.currency,
       amountLabel: "Por cobrar",
       note: chargesWithProof.has(charge.id)
         ? "Envió un comprobante: revísalo antes de registrar otro pago."
@@ -279,6 +290,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
         tenantName: charge.tenantName,
         amount: charge.amount,
         paidAmount: charge.paidAmount,
+        currency: charge.currency,
       },
     });
   }
@@ -378,6 +390,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
       days: dayOffset(expense.spentOn, today),
       dateKind: "event",
       amount: expense.amount,
+      currency: expense.currency,
       amountLabel: "Costo",
       note: "No cuenta en tus gastos hasta que lo apruebes.",
       action: {
@@ -393,6 +406,7 @@ export function buildTodayItems(input: TodayInput, now = new Date()): TodayItem[
           notes: expense.notes,
           taskId: expense.taskId,
           hasDonePhoto: expense.hasDonePhoto,
+          currency: expense.currency,
         },
       },
     });

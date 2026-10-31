@@ -1,5 +1,6 @@
 import type { OrgDb } from "@/lib/db/scoped";
 import { toNumber, periodKey, periodToDate, shiftPeriod, periodShortLabel } from "@/lib/format";
+import { CURRENCIES, type Currency } from "@/lib/currency";
 
 /**
  * Datos de la sección Premium de reportes.
@@ -7,7 +8,15 @@ import { toNumber, periodKey, periodToDate, shiftPeriod, periodShortLabel } from
  * Se calculan de verdad aunque la pantalla esté bloqueada: la vista previa
  * difuminada tiene que mostrar los números del negocio, no un relleno.
  */
-export async function getReportsData(db: OrgDb, months = 6) {
+export async function getReportsData(db: OrgDb, months = 6, requested?: Currency) {
+  // Un reporte es de una sola moneda: sus gráficas no pueden mezclar pesos
+  // con dólares. Se ofrecen las monedas que usan las propiedades.
+  const used = await db.building.findMany({ select: { currency: true }, distinct: ["currency"] });
+  const currencies = CURRENCIES.filter((c) => used.some((u) => u.currency === c));
+  const currency: Currency =
+    requested && currencies.includes(requested) ? requested : (currencies[0] ?? "MXN");
+  const inCurrency = { building: { currency } };
+
   const current = periodKey(new Date());
   const periods = Array.from({ length: months }, (_, i) =>
     shiftPeriod(current, -(months - 1 - i)),
@@ -18,7 +27,7 @@ export async function getReportsData(db: OrgDb, months = 6) {
 
   const [rentCharges, serviceCharges, buildings, bookings, repairExpenses] = await Promise.all([
     db.rentCharge.findMany({
-      where: { period: { in: periods } },
+      where: { period: { in: periods }, lease: { unit: inCurrency } },
       select: {
         period: true,
         amount: true,
@@ -34,7 +43,7 @@ export async function getReportsData(db: OrgDb, months = 6) {
       },
     }),
     db.serviceCharge.findMany({
-      where: { period: { in: periods } },
+      where: { period: { in: periods }, serviceAccount: { OR: [inCurrency, { unit: inCurrency }] } },
       select: {
         period: true,
         amount: true,
@@ -48,6 +57,7 @@ export async function getReportsData(db: OrgDb, months = 6) {
       },
     }),
     db.building.findMany({
+      where: { currency },
       select: {
         id: true,
         name: true,
@@ -56,12 +66,12 @@ export async function getReportsData(db: OrgDb, months = 6) {
       orderBy: { name: "asc" },
     }),
     db.booking.findMany({
-      where: { status: { in: ["CONFIRMED", "COMPLETED"] } },
+      where: { status: { in: ["CONFIRMED", "COMPLETED"] }, unit: inCurrency },
       select: { totalAmount: true, checkIn: true, source: true },
     }),
     // Gastos de unidad (reparaciones): solo los aprobados cuentan.
     db.expense.findMany({
-      where: { status: "APPROVED", spentOn: { gte: first, lt: last } },
+      where: { status: "APPROVED", spentOn: { gte: first, lt: last }, unit: inCurrency },
       select: { amount: true, spentOn: true, unit: { select: { buildingId: true } } },
     }),
   ]);
@@ -137,6 +147,10 @@ export async function getReportsData(db: OrgDb, months = 6) {
   );
 
   return {
+    /** Moneda de todo el reporte. */
+    currency,
+    /** Monedas que usan las propiedades; con más de una se ofrece cambiar. */
+    currencies,
     periods,
     monthly,
     byBuilding,

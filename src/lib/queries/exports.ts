@@ -30,7 +30,7 @@ async function pendingCsv(db: OrgDb) {
   const { items } = await getTodayData(db);
   const groupTitle = new Map(TODAY_GROUPS.map((g) => [g.id, g.title]));
   return toCsv(
-    ["Grupo", "Estado", "Asunto", "Propiedad", "Persona", "Rol", "Fecha", "Por cobrar", "Nota"],
+    ["Grupo", "Estado", "Asunto", "Propiedad", "Persona", "Rol", "Fecha", "Por cobrar", "Nota", "Moneda"],
     items.map((item) => [
       groupTitle.get(item.group),
       item.status,
@@ -41,6 +41,7 @@ async function pendingCsv(db: OrgDb) {
       item.date ?? item.when,
       item.amount === undefined ? null : csvAmount(item.amount),
       item.note,
+      item.amount === undefined ? null : (item.currency ?? "MXN"),
     ]),
   );
 }
@@ -62,13 +63,13 @@ async function chargesCsv(db: OrgDb, period: string) {
       lease: {
         select: {
           tenant: { select: { name: true } },
-          unit: { select: { code: true, building: { select: { name: true } } } },
+          unit: { select: { code: true, building: { select: { name: true, currency: true } } } },
         },
       },
     },
   });
   return toCsv(
-    ["Propiedad", "Unidad", "Inquilino", "Periodo", "Vence", "Cargo", "Pagado", "Saldo", "Estado", "Último pago", "Forma de pago", "Referencia"],
+    ["Propiedad", "Unidad", "Inquilino", "Periodo", "Vence", "Cargo", "Pagado", "Saldo", "Estado", "Último pago", "Forma de pago", "Referencia", "Moneda"],
     charges.map((c) => {
       const amount = toNumber(c.amount);
       const paid = toNumber(c.paidAmount);
@@ -85,6 +86,7 @@ async function chargesCsv(db: OrgDb, period: string) {
         c.paidAt,
         c.method,
         c.reference,
+        c.lease.unit.building.currency,
       ];
     }),
   );
@@ -100,7 +102,7 @@ async function expensesCsv(db: OrgDb, period: string) {
       concept: true,
       amount: true,
       spentOn: true,
-      unit: { select: { code: true, building: { select: { name: true } } } },
+      unit: { select: { code: true, building: { select: { name: true, currency: true } } } },
     },
   });
   const charges = await db.serviceCharge.findMany({
@@ -118,14 +120,14 @@ async function expensesCsv(db: OrgDb, period: string) {
           providerName: true,
           contractNumber: true,
           includedInRent: true,
-          building: { select: { name: true } },
-          unit: { select: { code: true, building: { select: { name: true } } } },
+          building: { select: { name: true, currency: true } },
+          unit: { select: { code: true, building: { select: { name: true, currency: true } } } },
         },
       },
     },
   });
   return toCsv(
-    ["Propiedad", "Unidad", "Servicio", "Proveedor", "Contrato", "Periodo", "Monto", "Incluido en la renta", "Vence", "Estado", "Pagado el"],
+    ["Propiedad", "Unidad", "Servicio", "Proveedor", "Contrato", "Periodo", "Monto", "Incluido en la renta", "Vence", "Estado", "Pagado el", "Moneda"],
     [
       ...charges.map((c) => {
         const account = c.serviceAccount;
@@ -141,6 +143,7 @@ async function expensesCsv(db: OrgDb, period: string) {
           c.dueDate,
           CHARGE_STATUS_LABELS[c.status],
           c.paidAt,
+          account.building?.currency ?? account.unit?.building.currency,
         ];
       }),
       // Las reparaciones aprobadas van como gasto de su unidad.
@@ -156,6 +159,7 @@ async function expensesCsv(db: OrgDb, period: string) {
         r.spentOn,
         EXPENSE_STATUS_LABELS.APPROVED,
         null,
+        r.unit.building.currency,
       ]),
     ],
   );
@@ -186,12 +190,13 @@ async function ownersCsv(db: OrgDb) {
           csvAmount(m.net),
           csvAmount(m.payouts),
           csvAmount(balance / 100),
+          building.currency,
         ]);
       }
     }
   }
   return toCsv(
-    ["Propietario", "Propiedad", "Mes", "Rentas cobradas", "Reservas", "Reparaciones", "Servicios", "Neto", "Entregado", "Pendiente al cierre"],
+    ["Propietario", "Propiedad", "Mes", "Rentas cobradas", "Reservas", "Reparaciones", "Servicios", "Neto", "Entregado", "Pendiente al cierre", "Moneda"],
     rows,
   );
 }

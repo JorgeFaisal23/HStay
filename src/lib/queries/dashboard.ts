@@ -1,5 +1,6 @@
 import type { OrgDb } from "@/lib/db/scoped";
 import { periodKey, toNumber, daysBetween } from "@/lib/format";
+import { ACCOUNT_CURRENCY, accountCurrency, totalByCurrency } from "@/lib/currency";
 
 /**
  * Consultas del resumen. Todo el cálculo vive aquí para que la página solo se
@@ -25,11 +26,16 @@ export async function getDashboardData(db: OrgDb) {
       }),
       db.rentCharge.findMany({
         where: { period },
-        select: { amount: true, paidAmount: true, status: true },
+        select: {
+          amount: true,
+          paidAmount: true,
+          status: true,
+          lease: { select: { unit: { select: { building: { select: { currency: true } } } } } },
+        },
       }),
       db.serviceCharge.findMany({
         where: { period },
-        select: { amount: true },
+        select: { amount: true, serviceAccount: { select: ACCOUNT_CURRENCY } },
       }),
       db.lease.findMany({
         where: { status: "ACTIVE" },
@@ -53,7 +59,7 @@ export async function getDashboardData(db: OrgDb) {
           source: true,
           totalAmount: true,
           unit: {
-            select: { id: true, code: true, building: { select: { name: true } } },
+            select: { id: true, code: true, building: { select: { name: true, currency: true } } },
           },
         },
         orderBy: { checkIn: "asc" },
@@ -67,20 +73,24 @@ export async function getDashboardData(db: OrgDb) {
     (u) => u.status === "OCCUPIED" || u.status === "SHORT_TERM",
   ).length;
 
-  const expectedIncome = rentCharges.reduce((sum, c) => sum + toNumber(c.amount), 0);
-  const collected = rentCharges.reduce((sum, c) => sum + toNumber(c.paidAmount), 0);
+  // Totales por moneda: nunca se suman pesos con dólares.
+  const rentCurrency = (c: (typeof rentCharges)[number]) => c.lease.unit.building.currency;
+  const expectedIncome = totalByCurrency(rentCharges, rentCurrency, (c) => toNumber(c.amount));
+  const collected = totalByCurrency(rentCharges, rentCurrency, (c) => toNumber(c.paidAmount));
   const overdue = rentCharges.filter((c) => c.status === "OVERDUE");
-  const overdueAmount = overdue.reduce(
-    (sum, c) => sum + toNumber(c.amount) - toNumber(c.paidAmount),
-    0,
+  const overdueAmount = totalByCurrency(
+    overdue,
+    rentCurrency,
+    (c) => toNumber(c.amount) - toNumber(c.paidAmount),
   );
   const pendingCount = rentCharges.filter(
     (c) => c.status === "PENDING" || c.status === "PARTIAL",
   ).length;
 
-  const servicesTotal = serviceCharges.reduce(
-    (sum, c) => sum + toNumber(c.amount),
-    0,
+  const servicesTotal = totalByCurrency(
+    serviceCharges,
+    (c) => accountCurrency(c.serviceAccount),
+    (c) => toNumber(c.amount),
   );
 
   // Cuántas cuentas de servicio siguen sin monto capturado este mes.
@@ -140,6 +150,7 @@ export async function getDashboardData(db: OrgDb) {
       checkOut: b.checkOut,
       source: b.source,
       totalAmount: toNumber(b.totalAmount),
+      currency: b.unit.building.currency,
       unitCode: b.unit.code,
       buildingName: b.unit.building.name,
     })),

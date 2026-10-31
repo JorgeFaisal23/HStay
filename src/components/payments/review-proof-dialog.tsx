@@ -102,13 +102,13 @@ export function ReviewProofDialog({ proof }: { proof: ProofToReview }) {
             <div>
               <dt className="text-muted-foreground text-xs">Declara</dt>
               <dd>
-                <Amount value={proof.amount} />
+                <Amount value={proof.amount} currency={proof.currency} />
               </dd>
             </div>
             <div>
               <dt className="text-muted-foreground text-xs">Falta por pagar</dt>
               <dd>
-                <Amount value={proof.remaining} />
+                <Amount value={proof.remaining} currency={proof.currency} />
               </dd>
             </div>
             <div>
@@ -148,11 +148,11 @@ export function ReviewProofDialog({ proof }: { proof: ProofToReview }) {
               </Field>
               {exceeds ? (
                 <Callout tone="warning">
-                  Declara más de lo que falta por pagar; se propone registrar solo {money(proof.remaining)}.
+                  Declara más de lo que falta por pagar; se propone registrar solo {money(proof.remaining, proof.currency)}.
                 </Callout>
               ) : adjusted ? (
                 <Callout tone="info">
-                  Registrarás {Number.isFinite(finalAmount) ? money(finalAmount) : "otro monto"}; el inquilino declaró {money(proof.amount)}.
+                  Registrarás {Number.isFinite(finalAmount) ? money(finalAmount, proof.currency) : "otro monto"}; el inquilino declaró {money(proof.amount, proof.currency)}.
                 </Callout>
               ) : null}
             </>

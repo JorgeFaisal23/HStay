@@ -225,7 +225,7 @@ export async function recordOwnerPayout(input: {
 
   const building = await db.building.findUnique({
     where: { id: data.buildingId },
-    select: { id: true, name: true, ownerId: true, ownerSince: true },
+    select: { id: true, name: true, ownerId: true, ownerSince: true, currency: true },
   });
   if (!building) return { error: "No se encontró la propiedad." };
   const { ownerId, ownerSince } = building;
@@ -241,7 +241,7 @@ export async function recordOwnerPayout(input: {
       return {
         error:
           pending > 0
-            ? `El monto excede lo pendiente de entregar (${money(pending)}).`
+            ? `El monto excede lo pendiente de entregar (${money(pending, building.currency)}).`
             : "No hay dinero pendiente de entregar en esta propiedad.",
       };
     }
@@ -269,7 +269,7 @@ export async function recordOwnerPayout(input: {
     "Entrega al propietario",
     "Building",
     building.id,
-    `${building.name} · ${data.method} · ${money(data.amount)}`,
+    `${building.name} · ${data.method} · ${money(data.amount, building.currency)}`,
   );
   refreshOwners(ownerId, building.id);
   return { ok: true };
@@ -281,7 +281,7 @@ export async function deleteOwnerPayout(payoutId: string): Promise<ActionResult>
 
   const payout = await db.ownerPayout.findUnique({
     where: { id: payoutId },
-    select: { id: true, amount: true, ownerId: true, buildingId: true, building: { select: { name: true } } },
+    select: { id: true, amount: true, ownerId: true, buildingId: true, building: { select: { name: true, currency: true } } },
   });
   if (!payout) return { error: "No se encontró la entrega." };
 
@@ -292,7 +292,7 @@ export async function deleteOwnerPayout(payoutId: string): Promise<ActionResult>
     "Cancelación de entrega al propietario",
     "Building",
     payout.buildingId,
-    `${payout.building.name} · ${money(toNumber(payout.amount))}`,
+    `${payout.building.name} · ${money(toNumber(payout.amount), payout.building.currency)}`,
   );
   refreshOwners(payout.ownerId, payout.buildingId);
   return { ok: true };

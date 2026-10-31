@@ -51,8 +51,11 @@ export const APP = {
   tagline: env(process.env.NEXT_PUBLIC_APP_TAGLINE, "Administración de rentas"),
   description:
     "Plataforma para administrar arrendamientos, servicios, cobros y reservas de corta estancia.",
-  /** Se mantiene a mano junto a la versión de package.json. */
-  version: "0.10.0",
+  /**
+   * Igual a la de package.json (lo vigila app.test.ts). Va escrita aquí para
+   * no meter package.json completo en el código del navegador.
+   */
+  version: "0.13.0",
   /** Sitio público del producto. Vacío mientras no exista. */
   url: env(process.env.NEXT_PUBLIC_APP_URL, ""),
   /**

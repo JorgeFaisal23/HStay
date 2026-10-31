@@ -29,7 +29,7 @@ export async function getPortalData(db: OrgDb, userId: string) {
             bathrooms: true,
             sizeM2: true,
             description: true,
-            building: { select: { name: true, address: true, city: true } },
+            building: { select: { name: true, address: true, city: true, currency: true } },
             serviceAccounts: {
               select: {
                 type: true,
@@ -61,7 +61,7 @@ export async function getPortalData(db: OrgDb, userId: string) {
         unit: {
           select: {
             code: true,
-            building: { select: { name: true, address: true } },
+            building: { select: { name: true, address: true, currency: true } },
           },
         },
       },
@@ -166,6 +166,8 @@ export async function getPortalData(db: OrgDb, userId: string) {
           buildingAddress: booking.unit.building.address,
         }
       : null,
+    /** Moneda de su contrato o estancia (la de la propiedad). */
+    currency: lease?.unit.building.currency ?? booking?.unit.building.currency ?? "MXN",
     charges,
     nextCharge,
     balance: charges

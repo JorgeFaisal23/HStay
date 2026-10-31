@@ -184,6 +184,13 @@ enum UnitStatus {
   MAINTENANCE
 }
 
+/// Moneda en que cobra una propiedad. No se convierte: cada monto se guarda y
+/// se muestra en la moneda de su propiedad, y los totales se llevan por moneda.
+enum Currency {
+  MXN
+  USD
+}
+
 model Building {
   id             String       @id @default(cuid())
   organizationId String
@@ -192,6 +199,8 @@ model Building {
   address        String
   city           String?
   notes          String?
+  /// Moneda de rentas, reservas, cargos y gastos de esta propiedad y sus unidades.
+  currency       Currency     @default(MXN)
   /// Propietario del inmueble cuando no es la arrendadora (rol PROPERTY_OWNER).
   ownerId        String?
   owner          User?        @relation("BuildingOwner", fields: [ownerId], references: [id], onDelete: SetNull)

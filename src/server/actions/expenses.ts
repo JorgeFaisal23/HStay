@@ -33,7 +33,7 @@ export async function approveExpense(expenseId: string, input: { amount?: number
 
   const expense = await db.expense.findUnique({
     where: { id: expenseId },
-    select: { status: true, amount: true, concept: true, unitId: true },
+    select: { status: true, amount: true, concept: true, unitId: true, unit: { select: { building: { select: { currency: true } } } } },
   });
   if (!expense) return { error: "No se encontró el gasto." };
 
@@ -54,7 +54,7 @@ export async function approveExpense(expenseId: string, input: { amount?: number
     adjusted ? "Aprobación de gasto con monto ajustado" : "Aprobación de gasto",
     "Expense",
     expenseId,
-    `${expense.concept} · ${money(amount)}${adjusted ? ` (se capturó ${money(declared)})` : ""}`,
+    `${expense.concept} · ${money(amount, expense.unit.building.currency)}${adjusted ? ` (se capturó ${money(declared, expense.unit.building.currency)})` : ""}`,
   );
   refreshExpenses(expense.unitId);
   return { ok: true };

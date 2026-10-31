@@ -143,7 +143,7 @@ function TodayRow({ item, staff }: { item: TodayItem; staff: StaffOption[] }) {
         {item.amount !== undefined ? (
           <span className="text-sm">
             <span className="text-muted-foreground mr-1.5 text-xs">{item.amountLabel}</span>
-            <Amount value={item.amount} tone={item.action.kind === "review" ? undefined : "danger"} />
+            <Amount value={item.amount} currency={item.currency} tone={item.action.kind === "review" ? undefined : "danger"} />
           </span>
         ) : null}
         <RowAction action={item.action} staff={staff} />
@@ -162,6 +162,7 @@ function RowAction({ action, staff }: { action: TodayAction; staff: StaffOption[
           amount={action.amount}
           remaining={remainingOf(action.amount, action.paidAmount)}
           partial={action.paidAmount > 0}
+          currency={action.currency}
           variant="outline"
           iconOnlyOnMobile={false}
         />

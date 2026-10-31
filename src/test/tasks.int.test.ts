@@ -152,7 +152,7 @@ describe("gastos", () => {
     const period = periodKey(new Date());
     const expense = await prisma.expense.findFirstOrThrow({ where: { organizationId: a.organizationId } });
 
-    expect((await getPaymentsBoard(db, period)).repairsExpense).toBe(0);
+    expect((await getPaymentsBoard(db, period)).repairsExpense).toEqual({});
     expect((await getTodayData(db)).items.map((i) => i.key)).toContain(`expense:${expense.id}`);
 
     as(a, ops.id, "OPERATIONS");
@@ -161,7 +161,7 @@ describe("gastos", () => {
     asOwner(a);
     expect(await expenses.approveExpense(expense.id, { amount: 800 })).toEqual({ ok: true });
     expect(await expenses.approveExpense(expense.id)).toEqual({ error: "Este gasto ya se revisó." });
-    expect((await getPaymentsBoard(db, period)).repairsExpense).toBe(800);
+    expect((await getPaymentsBoard(db, period)).repairsExpense).toEqual({ MXN: 800 });
     expect((await getTodayData(db)).items.map((i) => i.key)).not.toContain(`expense:${expense.id}`);
   });
 

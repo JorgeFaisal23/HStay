@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { Amount } from "@/components/shared/amount";
+import { Amount, Amounts } from "@/components/shared/amount";
+import { anyNegative, hasMoney, moneyEntries, subtractMoney } from "@/lib/currency";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -25,7 +26,7 @@ import {
 import { requireOrgUser } from "@/lib/auth/session";
 import { canEdit } from "@/lib/permissions";
 import { getServicesBoard } from "@/lib/queries/services";
-import { moneyCompact, periodKey, periodLabel, recentPeriods } from "@/lib/format";
+import { moneyCompact, moneyTotals, periodKey, periodLabel, recentPeriods } from "@/lib/format";
 import { SERVICE_TYPE_LABELS } from "@/lib/labels";
 import { AmountInput } from "./amount-input";
 import { PeriodToolbar } from "./period-toolbar";
@@ -46,8 +47,13 @@ export default async function ServicesPage({
   const board = await getServicesBoard(db, period);
   const editable = canEdit(session.role);
 
-  const difference = board.grandTotal - board.previousTotal;
-  const hasPrevious = board.previousTotal > 0;
+  // Diferencia contra el mes pasado, moneda por moneda.
+  const difference = subtractMoney(board.grandTotal, board.previousTotal);
+  const hasPrevious = hasMoney(board.previousTotal);
+  const differenceText = moneyEntries(difference)
+    .map(([c, value]) => `${value >= 0 ? "+" : "−"}${moneyCompact(Math.abs(value), c)}`)
+    .join(" · ");
+  const growing = !anyNegative(difference);
   const capturedCount = board.totalAccounts - board.missingCount;
 
   return (
@@ -69,7 +75,7 @@ export default async function ServicesPage({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard
           label={`Total consolidado · ${periodLabel(period)}`}
-          value={<Amount value={board.grandTotal} compact />}
+          value={<Amounts value={board.grandTotal} compact />}
           hint={`${board.buildings.length} ${board.buildings.length === 1 ? "propiedad" : "propiedades"}`}
           icon={Wallet}
           tone="brand"
@@ -78,15 +84,15 @@ export default async function ServicesPage({
           label={`Comparado con ${periodLabel(board.previousPeriod).toLowerCase()}`}
           value={
             hasPrevious
-              ? `${difference >= 0 ? "+" : "−"}${moneyCompact(Math.abs(difference))}`
+              ? differenceText
               : "Sin referencia"
           }
           hint={
             hasPrevious
-              ? `El mes pasado fueron ${moneyCompact(board.previousTotal)}`
+              ? `El mes pasado fueron ${moneyTotals(board.previousTotal, { compact: true })}`
               : "No hay montos capturados el mes anterior"
           }
-          icon={difference >= 0 ? TrendingUp : TrendingDown}
+          icon={growing ? TrendingUp : TrendingDown}
         />
         <StatCard
           label="Avance de captura"
@@ -132,7 +138,7 @@ export default async function ServicesPage({
                     Total de la propiedad
                   </p>
                   <p className="text-xl">
-                    <Amount value={building.total} />
+                    <Amount value={building.total} currency={building.currency} />
                   </p>
                 </div>
               </div>
@@ -203,7 +209,7 @@ export default async function ServicesPage({
                           {unit.total === 0 ? (
                             <span className="text-muted-foreground">—</span>
                           ) : (
-                            <Amount value={unit.total} className="font-medium" />
+                            <Amount value={unit.total} currency={building.currency} className="font-medium" />
                           )}
                         </TableCell>
                       </TableRow>
@@ -216,7 +222,7 @@ export default async function ServicesPage({
                       </th>
                       <TableCell colSpan={board.columns.length} />
                       <TableCell className="pl-3 text-right">
-                        <Amount value={building.unitsTotal} />
+                        <Amount value={building.unitsTotal} currency={building.currency} />
                       </TableCell>
                     </TableRow>
                   </TableFooter>
@@ -279,7 +285,7 @@ export default async function ServicesPage({
                                   className="flex justify-between gap-2 tabular-nums"
                                 >
                                   <span>{share.label}</span>
-                                  <Amount value={share.amount} className="font-normal" />
+                                  <Amount value={share.amount} currency={building.currency} className="font-normal" />
                                 </li>
                               ))}
                             </ul>
@@ -319,7 +325,7 @@ export default async function ServicesPage({
               </p>
             </div>
             <p className="text-3xl">
-              <Amount value={board.grandTotal} />
+              <Amounts value={board.grandTotal} />
             </p>
           </CardContent>
         </Card>

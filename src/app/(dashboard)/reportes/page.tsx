@@ -11,6 +11,8 @@ import {
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Amount } from "@/components/shared/amount";
+import { ButtonLink } from "@/components/shared/button-link";
+import { CURRENCY_LABELS, isCurrency } from "@/lib/currency";
 import { PremiumGate } from "@/components/premium/premium-gate";
 import {
   Card,
@@ -34,9 +36,18 @@ import {
 
 export const metadata: Metadata = { title: "Reportes" };
 
-export default async function ReportsPage() {
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ moneda?: string }>;
+}) {
   const { db } = await requireOrgUser(["OWNER", "ADMIN"]);
-  const [data, org] = await Promise.all([getReportsData(db), requireCurrentOrg()]);
+  const { moneda } = await searchParams;
+  const [data, org] = await Promise.all([
+    getReportsData(db, 6, isCurrency(moneda) ? moneda : undefined),
+    requireCurrentOrg(),
+  ]);
+  const currency = data.currency;
   // Colores concretos derivados de la marca: Recharts no resuelve var() en los
   // atributos del SVG.
   const colors = chartPalette(org.primaryColor);
@@ -68,29 +79,46 @@ export default async function ReportsPage() {
         description="Mide la rentabilidad real de cada propiedad, compara meses y detecta en qué se te va el dinero."
       >
         <div className="space-y-6">
+          {/* Un reporte es de una sola moneda: sus gráficas no mezclan pesos con dólares. */}
+          {data.currencies.length > 1 ? (
+            <nav aria-label="Moneda del reporte" className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Propiedades en</span>
+              {data.currencies.map((c) => (
+                <ButtonLink
+                  key={c}
+                  href={`/reportes?moneda=${c}`}
+                  variant={c === currency ? "default" : "outline"}
+                  size="sm"
+                  aria-current={c === currency ? "page" : undefined}
+                >
+                  {CURRENCY_LABELS[c]}
+                </ButtonLink>
+              ))}
+            </nav>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Renta facturada (6 meses)"
-              value={<Amount value={data.totals.income} compact />}
-              hint={`${moneyCompact(data.totals.collected)} efectivamente cobrados`}
+              value={<Amount value={data.totals.income} currency={currency} compact />}
+              hint={`${moneyCompact(data.totals.collected, currency)} efectivamente cobrados`}
               icon={TrendingUp}
               tone="brand"
             />
             <StatCard
               label="Gastos"
-              value={<Amount value={data.totals.expenses} compact />}
+              value={<Amount value={data.totals.expenses} currency={currency} compact />}
               hint="Servicios y reparaciones aprobadas"
               icon={Receipt}
             />
             <StatCard
               label="Resultado neto"
-              value={<Amount value={net} compact />}
+              value={<Amount value={net} currency={currency} compact />}
               hint={`Margen del ${margin}%`}
               icon={PiggyBank}
             />
             <StatCard
               label="Ingreso por renta corta"
-              value={<Amount value={data.totals.shortTermIncome} compact />}
+              value={<Amount value={data.totals.shortTermIncome} currency={currency} compact />}
               hint="Reservas confirmadas y completadas"
               icon={TrendingUp}
             />
@@ -104,7 +132,7 @@ export default async function ReportsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <IncomeVsExpensesChart data={data.monthly} colors={colors} />
+              <IncomeVsExpensesChart data={data.monthly} colors={colors} currency={currency} />
             </CardContent>
           </Card>
 
@@ -117,7 +145,7 @@ export default async function ReportsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ProfitByBuildingChart data={data.byBuilding} colors={colors} />
+                <ProfitByBuildingChart data={data.byBuilding} colors={colors} currency={currency} />
               </CardContent>
             </Card>
 
@@ -129,7 +157,7 @@ export default async function ReportsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ServiceBreakdownChart data={data.serviceBreakdown} colors={colors} />
+                <ServiceBreakdownChart data={data.serviceBreakdown} colors={colors} currency={currency} />
               </CardContent>
             </Card>
           </div>
@@ -155,13 +183,13 @@ export default async function ReportsPage() {
                     <TableRow key={building.id}>
                       <TableCell className="font-medium">{building.name}</TableCell>
                       <TableCell className="text-right">
-                        <Amount value={building.income} className="font-normal" />
+                        <Amount value={building.income} currency={currency} className="font-normal" />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Amount value={building.expenses} className="font-normal" />
+                        <Amount value={building.expenses} currency={currency} className="font-normal" />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Amount value={building.net} />
+                        <Amount value={building.net} currency={currency} />
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {building.margin}%

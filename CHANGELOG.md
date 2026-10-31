@@ -9,6 +9,24 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 
 ## [Sin publicar]
 
+## [0.13.0] - 2026-10-30
+
+### Añadido
+- **Moneda por propiedad (pesos o dólares)**: al dar de alta o editar una propiedad se elige su moneda (`Building.currency`, pesos por defecto). Rentas, reservas, tarifas, cargos, gastos, depósitos y el estado de cuenta del propietario de esa propiedad se muestran en ella: `$12,345.50` en pesos y `USD 12,345.50` en dólares. No hay tipo de cambio ni conversión.
+- **Totales por moneda**: Resumen, Cobros ("Dinero del mes", avance de cobranza con una barra por moneda), Servicios, Hoy, Propietarios y la vista del propietario nunca suman pesos con dólares; un total que junta propiedades muestra una cifra por moneda (`MoneyByCurrency` en `src/lib/currency.ts` y `<Amounts>`).
+- **Reportes por moneda**: si hay propiedades en pesos y en dólares, Reportes ofrece elegir la moneda; cada reporte y sus gráficas son de una sola moneda.
+- Los CSV de Cobros, Gastos, Pendientes y Cuentas de propietarios llevan la columna "Moneda" al final.
+- El formulario de unidad muestra la moneda de la propiedad junto a la renta y las tarifas.
+- Pruebas: `currency.test.ts` y `currency.int.test.ts`.
+- La versión del menú y del acceso se actualiza con cada versión (antes seguía en 0.10.0); `app.test.ts` avisa si no coincide con `package.json`.
+
+### Corregido
+- En la ficha de una propiedad, las unidades de renta corta mostraban la renta mensual como si fuera "/noche". Ahora muestran su tarifa por noche, o la renta mensual si no tienen tarifa.
+
+### Seguridad
+- Migración `building_currency`: agrega el tipo `Currency` y la columna `Building.currency` (por defecto `MXN`); las propiedades existentes quedan en pesos y ninguna cifra cambia.
+- La moneda de una propiedad no se puede cambiar una vez que tiene contratos, reservas, cargos, gastos o entregas registrados: cambiarla reinterpretaría esos montos.
+
 ## [0.12.0] - 2026-10-30
 
 ### Añadido

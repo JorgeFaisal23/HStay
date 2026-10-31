@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, NativeSelect } from "@/components/shared/form-field";
 import { UNIT_STATUS_LABELS, UNIT_TYPE_LABELS } from "@/lib/labels";
 import type { UnitStatus, UnitType } from "@/generated/prisma/enums";
+import type { Currency } from "@/lib/currency";
 
 export type UnitDefaults = {
   buildingId?: string;
@@ -46,10 +48,13 @@ export function UnitFormFields({
   defaults = {},
   lockBuilding = false,
 }: {
-  buildings: { id: string; name: string }[];
+  buildings: { id: string; name: string; currency?: Currency }[];
   defaults?: UnitDefaults;
   lockBuilding?: boolean;
 }) {
+  // La moneda de la propiedad elegida: en ella se capturan renta y tarifas.
+  const [buildingId, setBuildingId] = useState(defaults.buildingId ?? "");
+  const currency = buildings.find((b) => b.id === buildingId)?.currency;
   return (
     <div className="space-y-4">
       <Field label="Propiedad" htmlFor="buildingId" required>
@@ -57,7 +62,8 @@ export function UnitFormFields({
           id="buildingId"
           name="buildingId"
           required
-          defaultValue={defaults.buildingId ?? ""}
+          value={buildingId}
+          onChange={(e) => setBuildingId(e.target.value)}
           disabled={lockBuilding}
         >
           <option value="" disabled>
@@ -136,7 +142,7 @@ export function UnitFormFields({
       </div>
 
       <Field
-        label="Renta mensual"
+        label={`Renta mensual${currency ? ` (${currency})` : ""}`}
         htmlFor="baseRent"
         required
         hint="La que se propone al hacer un contrato. Si la unidad solo se renta por noche, deja 0."
@@ -156,7 +162,7 @@ export function UnitFormFields({
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">
-          Tarifas de estancia corta{" "}
+          Tarifas de estancia corta{currency ? ` en ${currency}` : ""}{" "}
           <span className="text-muted-foreground font-normal">(opcional)</span>
         </legend>
         <div className="grid gap-4 sm:grid-cols-3">

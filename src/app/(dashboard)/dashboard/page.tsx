@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
-import { Amount } from "@/components/shared/amount";
+import { Amount, Amounts } from "@/components/shared/amount";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ButtonLink } from "@/components/shared/button-link";
@@ -26,7 +26,7 @@ import { getDashboardData } from "@/lib/queries/dashboard";
 import { requireOrgUser } from "@/lib/auth/session";
 import { requireCurrentOrg } from "@/lib/org";
 import { canEdit } from "@/lib/permissions";
-import { deadlineLabel, moneyCompact, money, periodLabel, shortDate } from "@/lib/format";
+import { deadlineLabel, moneyTotals, periodLabel, shortDate } from "@/lib/format";
 import { BOOKING_SOURCE_LABELS } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Resumen" };
@@ -63,13 +63,13 @@ export default async function DashboardPage() {
         />
         <StatCard
           label="Renta cobrada este mes"
-          value={<Amount value={data.collected} compact />}
-          hint={`De ${moneyCompact(data.expectedIncome)} esperados`}
+          value={<Amounts value={data.collected} compact />}
+          hint={`De ${moneyTotals(data.expectedIncome, { compact: true })} esperados`}
           icon={Banknote}
         />
         <StatCard
           label="Gasto en servicios"
-          value={<Amount value={data.servicesTotal} compact />}
+          value={<Amounts value={data.servicesTotal} compact />}
           hint={
             data.servicesMissing > 0
               ? `Faltan ${data.servicesMissing} montos por capturar`
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
           hint={
             data.overdueCount === 0
               ? "Todos los inquilinos al corriente"
-              : `${money(data.overdueAmount)} por recuperar`
+              : `${moneyTotals(data.overdueAmount)} por recuperar`
           }
           icon={AlertTriangle}
           tone={data.overdueCount > 0 ? "danger" : "default"}
@@ -113,7 +113,7 @@ export default async function DashboardPage() {
                   <AttentionRow
                     tone="danger"
                     title={`${data.overdueCount} ${data.overdueCount === 1 ? "cobro vencido" : "cobros vencidos"}`}
-                    detail={`${money(data.overdueAmount)} sin liquidar.`}
+                    detail={`${moneyTotals(data.overdueAmount)} sin liquidar.`}
                     href="/pagos"
                     cta="Ver cobros"
                   />
@@ -217,7 +217,7 @@ export default async function DashboardPage() {
                         {shortDate(booking.checkOut)}
                       </p>
                       <p className="text-muted-foreground text-xs">
-                        <Amount value={booking.totalAmount} className="font-normal" />
+                        <Amount value={booking.totalAmount} currency={booking.currency} className="font-normal" />
                       </p>
                     </div>
                   </li>

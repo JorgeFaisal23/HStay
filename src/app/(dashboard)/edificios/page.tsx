@@ -81,7 +81,7 @@ export default async function BuildingsPage() {
                       Renta mensual
                     </dt>
                     <dd className="font-medium tabular-nums">
-                      <Amount value={building.monthlyRent} compact className="font-medium" />
+                      <Amount value={building.monthlyRent} currency={building.currency} compact className="font-medium" />
                     </dd>
                   </div>
                   <div>
@@ -91,7 +91,7 @@ export default async function BuildingsPage() {
                     <dd className="font-medium tabular-nums">
                       {building.servicesThisMonth === 0
                         ? "Sin capturar"
-                        : <Amount value={building.servicesThisMonth} className="font-medium" />}
+                        : <Amount value={building.servicesThisMonth} currency={building.currency} className="font-medium" />}
                     </dd>
                   </div>
                 </dl>

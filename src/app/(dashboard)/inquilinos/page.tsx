@@ -105,7 +105,7 @@ export default async function TenantsPage() {
                             {tenant.buildingName} · {tenant.unitCode}
                           </p>
                           <p className="text-xs tabular-nums">
-                            <Amount value={tenant.rentAmount ?? 0} className="text-muted-foreground font-normal" />
+                            <Amount value={tenant.rentAmount ?? 0} currency={tenant.currency} className="text-muted-foreground font-normal" />
                             <span className="text-muted-foreground"> · </span>
                             <ContractDeadline
                               daysLeft={tenant.daysLeft}

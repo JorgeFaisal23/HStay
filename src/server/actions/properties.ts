@@ -9,6 +9,8 @@ import { buildingExists, unitExists } from "@/lib/db/guards";
 import type { ActionResult } from "@/lib/action-result";
 import type { OrgDb } from "@/lib/db/scoped";
 import { limitError, type LimitedResource } from "@/lib/plans";
+import { CURRENCIES } from "@/lib/currency";
+import { currencyLockReason } from "@/lib/queries/properties";
 
 /** Error si dar de alta uno más rebasa el plan de la arrendadora. */
 async function planLimitError(db: OrgDb, resource: Exclude<LimitedResource, "staff">) {
@@ -27,7 +29,18 @@ const buildingSchema = z.object({
   address: z.string().trim().min(4, "Escribe la dirección."),
   city: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  currency: z.enum(CURRENCIES, { error: "Elige la moneda de la propiedad." }),
 });
+
+function readBuilding(formData: FormData) {
+  return buildingSchema.safeParse({
+    name: formData.get("name"),
+    address: formData.get("address"),
+    city: formData.get("city") || undefined,
+    notes: formData.get("notes") || undefined,
+    currency: formData.get("currency") || "MXN",
+  });
+}
 
 export async function createBuilding(
   _prev: ActionResult,
@@ -35,12 +48,7 @@ export async function createBuilding(
 ): Promise<ActionResult> {
   const { session, orgId, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
 
-  const parsed = buildingSchema.safeParse({
-    name: formData.get("name"),
-    address: formData.get("address"),
-    city: formData.get("city") || undefined,
-    notes: formData.get("notes") || undefined,
-  });
+  const parsed = readBuilding(formData);
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Revisa los datos." };
@@ -67,17 +75,20 @@ export async function updateBuilding(
   const { session, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
   const buildingId = String(formData.get("buildingId") ?? "");
 
-  const parsed = buildingSchema.safeParse({
-    name: formData.get("name"),
-    address: formData.get("address"),
-    city: formData.get("city") || undefined,
-    notes: formData.get("notes") || undefined,
-  });
+  const parsed = readBuilding(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Revisa los datos." };
   }
-  if (!(await buildingExists(db, buildingId))) {
-    return { error: "No se encontró la propiedad." };
+  const current = await db.building.findUnique({
+    where: { id: buildingId },
+    select: { currency: true },
+  });
+  if (!current) return { error: "No se encontró la propiedad." };
+
+  const currencyChanged = current.currency !== parsed.data.currency;
+  if (currencyChanged) {
+    const locked = await currencyLockReason(db, buildingId);
+    if (locked) return { error: `No se puede cambiar la moneda. ${locked}` };
   }
 
   await db.building.update({
@@ -87,9 +98,19 @@ export async function updateBuilding(
       address: parsed.data.address,
       city: parsed.data.city ?? null,
       notes: parsed.data.notes ?? null,
+      currency: parsed.data.currency,
     },
   });
-  await logAction(db, session.sub, "Edición de propiedad", "Building", buildingId, parsed.data.name);
+  await logAction(
+    db,
+    session.sub,
+    "Edición de propiedad",
+    "Building",
+    buildingId,
+    currencyChanged
+      ? `${parsed.data.name} · moneda ${current.currency} → ${parsed.data.currency}`
+      : parsed.data.name,
+  );
 
   revalidatePath("/edificios");
   revalidatePath(`/edificios/${buildingId}`);

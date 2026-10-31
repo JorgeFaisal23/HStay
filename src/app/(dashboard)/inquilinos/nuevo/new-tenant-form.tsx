@@ -10,6 +10,7 @@ import { Field, FormError, NativeSelect } from "@/components/shared/form-field";
 import { Separator } from "@/components/ui/separator";
 import { createTenant } from "@/server/actions/tenants";
 import { money } from "@/lib/format";
+import type { Currency } from "@/lib/currency";
 import { LeaseTermsFields } from "@/components/leases/lease-terms-fields";
 
 function Submit({ pending }: { pending: boolean }) {
@@ -25,7 +26,7 @@ export function NewTenantForm({
   defaultUnitId,
   canInvite = false,
 }: {
-  units: { id: string; code: string; buildingName: string; baseRent: number }[];
+  units: { id: string; code: string; buildingName: string; baseRent: number; currency: Currency }[];
   defaultUnitId?: string;
   /** Hay correo configurado: sin contraseña temporal se le manda una invitación. */
   canInvite?: boolean;
@@ -107,7 +108,7 @@ export function NewTenantForm({
             <option value="">Sin asignar por ahora</option>
             {units.map((unit) => (
               <option key={unit.id} value={unit.id}>
-                {unit.buildingName} · {unit.code} — {money(unit.baseRent)}
+                {unit.buildingName} · {unit.code} — {money(unit.baseRent, unit.currency)}
               </option>
             ))}
           </NativeSelect>

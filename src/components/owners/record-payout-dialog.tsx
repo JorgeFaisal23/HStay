@@ -19,6 +19,7 @@ import { Field, FormError, NativeSelect } from "@/components/shared/form-field";
 import { ReceiptPicker } from "@/components/payments/receipt-picker";
 import { localDateInput } from "@/components/leases/lease-terms-fields";
 import { money } from "@/lib/format";
+import type { Currency } from "@/lib/currency";
 import { PAYMENT_METHODS } from "@/lib/payment-methods";
 import { recordOwnerPayout } from "@/server/actions/owners";
 
@@ -32,11 +33,14 @@ export function RecordPayoutDialog({
   ownerName,
   pending,
   variant = "default",
+  currency = "MXN",
 }: {
   buildingId: string;
   buildingName: string;
   ownerName: string;
   pending: number;
+  /** Moneda de la propiedad. */
+  currency?: Currency;
   variant?: "default" | "outline";
 }) {
   const router = useRouter();
@@ -84,7 +88,7 @@ export function RecordPayoutDialog({
         <DialogHeader>
           <DialogTitle>Registrar entrega</DialogTitle>
           <DialogDescription>
-            {buildingName} · a {ownerName} · pendiente {money(pending)}
+            {buildingName} · a {ownerName} · pendiente {money(pending, currency)}
           </DialogDescription>
         </DialogHeader>
 

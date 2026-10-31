@@ -18,6 +18,7 @@ import { CHARGE_STATUS_LABELS, CHARGE_STATUS_TONES } from "@/lib/labels";
 import { ReceiptViewer } from "@/components/payments/receipt-viewer";
 import { SubmitProofDialog } from "@/components/payments/submit-proof-dialog";
 import { Callout } from "@/components/shared/callout";
+import type { Currency } from "@/lib/currency";
 import { PROOF_STATUS_LABELS, PROOF_STATUS_TONES } from "@/lib/labels";
 import { remainingOf } from "@/lib/payments";
 
@@ -41,7 +42,7 @@ export default async function PortalPaymentsPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           label="Saldo pendiente"
-          value={data.balance === 0 ? "Sin adeudo" : <Amount value={data.balance} />}
+          value={data.balance === 0 ? "Sin adeudo" : <Amount value={data.balance} currency={data.currency} />}
           hint={
             data.balance === 0
               ? "Estás al corriente"
@@ -93,13 +94,13 @@ export default async function PortalPaymentsPage() {
                     </p>
                     {charge.status === "PARTIAL" ? (
                       <p className="text-muted-foreground text-xs">
-                        Abonado <Amount value={charge.paidAmount} /> · falta{" "}
-                        <Amount value={charge.amount - charge.paidAmount} />
+                        Abonado <Amount value={charge.paidAmount} currency={data.currency} /> · falta{" "}
+                        <Amount value={charge.amount - charge.paidAmount} currency={data.currency} />
                       </p>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Amount value={charge.amount} className="text-sm" />
+                    <Amount value={charge.amount} currency={data.currency} className="text-sm" />
                     <StatusBadge tone={CHARGE_STATUS_TONES[charge.status]}>
                       {CHARGE_STATUS_LABELS[charge.status]}
                     </StatusBadge>
@@ -107,11 +108,11 @@ export default async function PortalPaymentsPage() {
                       <ReceiptViewer
                         receiptUrl={charge.receiptUrl}
                         title={`Pago de ${periodLabel(charge.period)}`}
-                        subtitle={`${money(charge.amount)}${charge.method ? ` · ${charge.method}` : ""}`}
+                        subtitle={`${money(charge.amount, data.currency)}${charge.method ? ` · ${charge.method}` : ""}`}
                       />
                     ) : null}
                   </div>
-                  {charge.status !== "PAID" ? <ProofRow charge={charge} /> : null}
+                  {charge.status !== "PAID" ? <ProofRow charge={charge} currency={data.currency} /> : null}
                 </li>
               ))}
             </ul>
@@ -128,7 +129,7 @@ type PortalCharge = Awaited<ReturnType<typeof getPortalData>>["charges"][number]
  * Comprobante de un cargo sin liquidar: enviarlo, verlo en revisión o, si lo
  * rechazaron, leer el motivo y enviar otro.
  */
-function ProofRow({ charge }: { charge: PortalCharge }) {
+function ProofRow({ charge, currency }: { charge: PortalCharge; currency: Currency }) {
   const proof = charge.lastProof;
   const remaining = remainingOf(charge.amount, charge.paidAmount);
   const dialog = (resend: boolean) => (
@@ -137,6 +138,7 @@ function ProofRow({ charge }: { charge: PortalCharge }) {
       periodName={periodLabel(charge.period)}
       remaining={remaining}
       resend={resend}
+      currency={currency}
     />
   );
 
@@ -147,7 +149,7 @@ function ProofRow({ charge }: { charge: PortalCharge }) {
           Comprobante {PROOF_STATUS_LABELS.SUBMITTED.toLowerCase()}
         </StatusBadge>
         <span className="text-muted-foreground text-pretty">
-          Enviado el {shortDate(proof.createdAt)} por <Amount value={proof.amount} className="font-normal" />.
+          Enviado el {shortDate(proof.createdAt)} por <Amount value={proof.amount} currency={currency} className="font-normal" />.
           El pago cuenta cuando el administrador lo apruebe.
         </span>
       </div>

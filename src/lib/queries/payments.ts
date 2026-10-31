@@ -1,5 +1,13 @@
 import type { OrgDb } from "@/lib/db/scoped";
 import { toNumber } from "@/lib/format";
+import {
+  ACCOUNT_CURRENCY,
+  UNIT_CURRENCY,
+  accountCurrency,
+  subtractMoney,
+  totalByCurrency,
+  type Currency,
+} from "@/lib/currency";
 import { chargeableLeasesWhere, periodBounds } from "@/lib/payments";
 
 /** Cobros de renta de un periodo, agrupados por propiedad. */
@@ -35,7 +43,7 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
               select: {
                 id: true,
                 code: true,
-                building: { select: { id: true, name: true } },
+                building: { select: { id: true, name: true, currency: true } },
               },
             },
           },
@@ -49,19 +57,22 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
   const { start: monthStart, end: monthEnd } = periodBounds(period);
   const monthLimit = new Date(monthEnd.getFullYear(), monthEnd.getMonth(), monthEnd.getDate() + 1);
 
+  // Montos con la moneda de su propiedad: los totales se llevan por moneda.
   const [missingCharges, serviceCharges, deposits, servicesMissing, repairs, pendingRepairExpenses] = await Promise.all([
     db.lease.count({ where: chargeableLeasesWhere(period) }),
-    db.serviceCharge.aggregate({ where: { period }, _sum: { amount: true } }),
-    db.lease.aggregate({
+    db.serviceCharge.findMany({
+      where: { period },
+      select: { amount: true, serviceAccount: { select: ACCOUNT_CURRENCY } },
+    }),
+    db.lease.findMany({
       where: { status: "ACTIVE", depositAmount: { gt: 0 } },
-      _sum: { depositAmount: true },
-      _count: true,
+      select: { depositAmount: true, unit: { select: UNIT_CURRENCY } },
     }),
     db.serviceAccount.count({ where: { active: true, charges: { none: { period } } } }),
     // Reparaciones del mes: aprobadas cuentan como gasto; las pendientes se avisan.
-    db.expense.aggregate({
+    db.expense.findMany({
       where: { status: "APPROVED", spentOn: { gte: monthStart, lt: monthLimit } },
-      _sum: { amount: true },
+      select: { amount: true, unit: { select: UNIT_CURRENCY } },
     }),
     db.expense.count({ where: { status: "PENDING" } }),
   ]);
@@ -71,6 +82,8 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
     {
       id: string;
       name: string;
+      /** Moneda de la propiedad: la de todos sus cargos. */
+      currency: Currency;
       charges: {
         id: string;
         tenantId: string;
@@ -103,6 +116,7 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
     const group = groups.get(building.id) ?? {
       id: building.id,
       name: building.name,
+      currency: building.currency,
       charges: [],
       total: 0,
       collected: 0,
@@ -134,8 +148,9 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
   }
 
   const buildings = [...groups.values()];
-  const expected = buildings.reduce((sum, b) => sum + b.total, 0);
-  const collected = buildings.reduce((sum, b) => sum + b.collected, 0);
+  // Cada propiedad suma en su moneda; el total general se lleva por moneda.
+  const expected = totalByCurrency(buildings, (b) => b.currency, (b) => b.total);
+  const collected = totalByCurrency(buildings, (b) => b.currency, (b) => b.collected);
   const overdue = charges.filter((c) => c.status === "OVERDUE");
 
   return {
@@ -143,7 +158,7 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
     buildings,
     expected,
     collected,
-    pending: expected - collected,
+    pending: subtractMoney(expected, collected),
     overdueCount: overdue.length,
     chargeCount: charges.length,
     activeLeases,
@@ -154,9 +169,17 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
     /** Cargos del mes sin liquidar. */
     openCharges: charges.filter((c) => c.status !== "PAID").length,
     /** Gasto en servicios capturado del mes. */
-    servicesExpense: toNumber(serviceCharges._sum.amount ?? 0),
+    servicesExpense: totalByCurrency(
+      serviceCharges,
+      (c) => accountCurrency(c.serviceAccount),
+      (c) => toNumber(c.amount),
+    ),
     /** Gastos de reparación aprobados del mes. */
-    repairsExpense: toNumber(repairs._sum.amount ?? 0),
+    repairsExpense: totalByCurrency(
+      repairs,
+      (r) => r.unit.building.currency,
+      (r) => toNumber(r.amount),
+    ),
     /** Gastos de reparación por aprobar (de cualquier mes). */
     pendingRepairExpenses,
     /** Cuentas de servicio activas sin monto del mes. */
@@ -166,6 +189,13 @@ export async function getPaymentsBoard(db: OrgDb, period: string) {
      * inquilino que se resguarda, no ingreso; la recepción y la devolución
      * todavía no se registran.
      */
-    deposits: { total: toNumber(deposits._sum.depositAmount ?? 0), leases: deposits._count },
+    deposits: {
+      total: totalByCurrency(
+        deposits,
+        (l) => l.unit.building.currency,
+        (l) => toNumber(l.depositAmount),
+      ),
+      leases: deposits.length,
+    },
   };
 }

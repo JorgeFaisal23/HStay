@@ -8,6 +8,7 @@ import { Field, FormError, NativeSelect } from "@/components/shared/form-field";
 import { LeaseTermsFields } from "@/components/leases/lease-terms-fields";
 import { createLease } from "@/server/actions/leases";
 import { money } from "@/lib/format";
+import type { Currency } from "@/lib/currency";
 
 function Submit({ pending }: { pending: boolean }) {
   return (
@@ -25,7 +26,7 @@ export function NewLeaseForm({
   cancelHref,
 }: {
   tenants: { id: string; name: string; email: string | null }[];
-  units: { id: string; code: string; buildingName: string; baseRent: number }[];
+  units: { id: string; code: string; buildingName: string; baseRent: number; currency: Currency }[];
   defaultTenantId?: string;
   defaultUnitId?: string;
   cancelHref: string;
@@ -63,7 +64,7 @@ export function NewLeaseForm({
             </option>
             {units.map((unit) => (
               <option key={unit.id} value={unit.id}>
-                {unit.buildingName} · {unit.code} — {money(unit.baseRent)}
+                {unit.buildingName} · {unit.code} — {money(unit.baseRent, unit.currency)}
               </option>
             ))}
           </NativeSelect>

@@ -250,10 +250,10 @@ export default async function TenantDetailPage({
                 <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   <Detail label="Inicio" value={longDate(lease.startDate)} />
                   <Detail label="Vencimiento" value={longDate(lease.endDate)} />
-                  <Detail label="Renta" value={money(lease.rentAmount)} />
+                  <Detail label="Renta" value={money(lease.rentAmount, lease.currency)} />
                   <Detail
                     label="Depósito"
-                    value={lease.depositAmount ? money(lease.depositAmount) : "—"}
+                    value={lease.depositAmount ? money(lease.depositAmount, lease.currency) : "—"}
                   />
                 </dl>
 
@@ -335,7 +335,7 @@ export default async function TenantDetailPage({
                       {shortDate(charge.dueDate)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Amount value={charge.amount} />
+                      <Amount value={charge.amount} currency={charge.currency} />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
                       {charge.paidAt
@@ -343,7 +343,7 @@ export default async function TenantDetailPage({
                         : "—"}
                       {charge.status === "PARTIAL" ? (
                         <span className="block">
-                          Abonado <Amount value={charge.paidAmount} />
+                          Abonado <Amount value={charge.paidAmount} currency={charge.currency} />
                         </span>
                       ) : null}
                     </TableCell>
@@ -356,7 +356,7 @@ export default async function TenantDetailPage({
                       {charge.receiptUrl ? (
                         <ReceiptBadge
                           receiptUrl={charge.receiptUrl}
-                          title={`${tenant.name} · ${money(charge.amount)}`}
+                          title={`${tenant.name} · ${money(charge.amount, charge.currency)}`}
                           subtitle={periodLabel(charge.period)}
                         />
                       ) : null}

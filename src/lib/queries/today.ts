@@ -1,4 +1,5 @@
 import type { OrgDb } from "@/lib/db/scoped";
+import type { Currency } from "@/lib/currency";
 import { periodKey, periodLabel, toNumber } from "@/lib/format";
 import { chargeDueDate, chargeableLeasesWhere, remainingOf, startOfToday } from "@/lib/payments";
 import { buildTodayItems, LEASE_WARNING_DAYS, LOOKAHEAD_DAYS } from "@/lib/today";
@@ -8,10 +9,15 @@ import { buildTodayItems, LEASE_WARNING_DAYS, LOOKAHEAD_DAYS } from "@/lib/today
  * alcance de la arrendadora; los pendientes se arman en src/lib/today.ts.
  */
 
-const unitSelect = { id: true, code: true, building: { select: { name: true } } } as const;
+const unitSelect = { id: true, code: true, building: { select: { name: true, currency: true } } } as const;
 
-function place(unit: { id: string; code: string; building: { name: string } }) {
-  return { unitId: unit.id, unitCode: unit.code, buildingName: unit.building.name };
+function place(unit: { id: string; code: string; building: { name: string; currency: Currency } }) {
+  return {
+    unitId: unit.id,
+    unitCode: unit.code,
+    buildingName: unit.building.name,
+    currency: unit.building.currency,
+  };
 }
 
 function addDays(date: Date, days: number) {

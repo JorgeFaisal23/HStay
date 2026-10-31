@@ -86,7 +86,7 @@ export default async function TasksPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-3">
-                    <Amount value={expense.amount} className="text-sm" />
+                    <Amount value={expense.amount} currency={expense.unit.building.currency} className="text-sm" />
                     <ReviewExpenseDialog
                       expense={{
                         id: expense.id,
@@ -99,6 +99,7 @@ export default async function TasksPage() {
                         notes: expense.notes,
                         taskId: expense.taskId,
                         hasDonePhoto: expense.hasDonePhoto,
+                        currency: expense.unit.building.currency,
                       }}
                     />
                   </div>
@@ -190,7 +191,7 @@ export default async function TasksPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     {task.expense ? (
                       <span className="text-sm">
-                        <Amount value={task.expense.amount} />{" "}
+                        <Amount value={task.expense.amount} currency={task.unit.building.currency} />{" "}
                         <StatusBadge tone={EXPENSE_STATUS_TONES[task.expense.status]}>
                           Gasto {EXPENSE_STATUS_LABELS[task.expense.status].toLowerCase()}
                         </StatusBadge>

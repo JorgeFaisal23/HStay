@@ -14,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getBuildingDetail } from "@/lib/queries/properties";
+import { currencyLockReason, getBuildingDetail } from "@/lib/queries/properties";
 import { getOwnerOptions, ownerSinceOptions, statementForBuilding } from "@/lib/queries/owners";
 import { AssignOwnerDialog } from "@/components/owners/assign-owner-dialog";
 import { requireOrgUser } from "@/lib/auth/session";
@@ -55,9 +55,10 @@ export default async function BuildingDetailPage({
 
   const editable = canEdit(session.role);
   const { owner, ownerSince } = building;
-  const [ownerOptions, ownerStatement] = await Promise.all([
+  const [ownerOptions, ownerStatement, currencyLocked] = await Promise.all([
     editable ? getOwnerOptions(db) : [],
     owner && ownerSince ? statementForBuilding(db, { id: building.id, ownerId: owner.id, ownerSince }) : null,
+    editable ? currencyLockReason(db, building.id) : null,
   ]);
   const occupied = building.units.filter(
     (u) => u.status === "OCCUPIED" || u.status === "SHORT_TERM",
@@ -93,7 +94,9 @@ export default async function BuildingDetailPage({
                   address: building.address,
                   city: building.city,
                   notes: building.notes,
+                  currency: building.currency,
                 }}
+                currencyLocked={currencyLocked}
               />
               <ButtonLink href={`/unidades/nueva?edificio=${building.id}`}>
                 <Plus className="size-4" aria-hidden />
@@ -134,7 +137,7 @@ export default async function BuildingDetailPage({
           <CardContent className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm">
               Pendiente de entregar:{" "}
-              <Amount value={ownerStatement.pending} tone={ownerStatement.pending < 0 ? "danger" : undefined} />
+              <Amount value={ownerStatement.pending} currency={building.currency} tone={ownerStatement.pending < 0 ? "danger" : undefined} />
               {ownerStatement.pending < 0 ? <span className="text-muted-foreground"> (entregado de más)</span> : null}
             </p>
             <ButtonLink href={`/propietarios/${owner.id}`} variant="link" size="sm">
@@ -197,10 +200,15 @@ export default async function BuildingDetailPage({
                     </div>
 
                     <div className="flex items-center justify-between gap-4 sm:justify-end">
+                      {/* Renta corta con tarifa por noche: esa; si no, la renta mensual. */}
                       <span className="text-sm">
-                        <Amount value={unit.baseRent} className="font-medium" />
+                        <Amount
+                          value={unit.status === "SHORT_TERM" && unit.nightlyRate !== null ? unit.nightlyRate : unit.baseRent}
+                          currency={building.currency}
+                          className="font-medium"
+                        />
                         <span className="text-muted-foreground text-xs font-normal">
-                          {unit.status === "SHORT_TERM" ? " /noche" : " /mes"}
+                          {unit.status === "SHORT_TERM" && unit.nightlyRate !== null ? " /noche" : " /mes"}
                         </span>
                       </span>
                       <StatusBadge tone={UNIT_STATUS_TONES[unit.status]}>

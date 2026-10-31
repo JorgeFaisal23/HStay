@@ -77,6 +77,7 @@ export async function submitPaymentProof(input: {
       amount: true,
       paidAmount: true,
       proofs: { where: { status: "SUBMITTED" }, select: { id: true }, take: 1 },
+      lease: { select: { unit: { select: { building: { select: { currency: true } } } } } },
     },
   });
   if (!charge) return { error: "No se encontró el cargo." };
@@ -84,7 +85,7 @@ export async function submitPaymentProof(input: {
   const remaining = remainingOf(toNumber(charge.amount), toNumber(charge.paidAmount));
   if (remaining === 0) return { error: "Este cargo ya está pagado." };
   if (toCents(data.amount) > toCents(remaining)) {
-    return { error: `El monto es mayor a lo que falta por pagar (${money(remaining)}).` };
+    return { error: `El monto es mayor a lo que falta por pagar (${money(remaining, charge.lease.unit.building.currency)}).` };
   }
   if (charge.proofs.length > 0) return { error: PENDING_EXISTS };
 
@@ -115,7 +116,7 @@ export async function submitPaymentProof(input: {
     "Envío de comprobante",
     "PaymentProof",
     proofId,
-    `${periodLabel(charge.period)} · ${money(data.amount)} · ${data.method}`,
+    `${periodLabel(charge.period)} · ${money(data.amount, charge.lease.unit.building.currency)} · ${data.method}`,
   );
   refreshPayments(session.sub);
   return { ok: true };
@@ -134,7 +135,12 @@ async function findSubmitted(db: OrgDb, proofId: string) {
       reference: true,
       paidOn: true,
       receiptUrl: true,
-      rentCharge: { select: { period: true } },
+      rentCharge: {
+        select: {
+          period: true,
+          lease: { select: { unit: { select: { building: { select: { currency: true } } } } } },
+        },
+      },
       submittedBy: { select: { name: true } },
     },
   });
@@ -184,7 +190,7 @@ export async function approvePaymentProof(
       throw new AmountError(
         remaining === 0
           ? "Este cargo ya está pagado. Rechaza el comprobante con el motivo."
-          : `El monto es mayor a lo que falta por pagar (${money(remaining)}).`,
+          : `El monto es mayor a lo que falta por pagar (${money(remaining, proof.rentCharge.lease.unit.building.currency)}).`,
       );
     }
 
@@ -217,7 +223,7 @@ export async function approvePaymentProof(
     adjusted ? "Aprobación de comprobante con monto ajustado" : "Aprobación de comprobante",
     "PaymentProof",
     proofId,
-    `${proof.submittedBy.name} · ${periodLabel(proof.rentCharge.period)} · ${money(amount)}${adjusted ? ` (declaró ${money(declared)})` : ""}`,
+    `${proof.submittedBy.name} · ${periodLabel(proof.rentCharge.period)} · ${money(amount, proof.rentCharge.lease.unit.building.currency)}${adjusted ? ` (declaró ${money(declared, proof.rentCharge.lease.unit.building.currency)})` : ""}`,
   );
   refreshPayments(proof.submittedById);
   return { ok: true };
