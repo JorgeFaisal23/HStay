@@ -37,7 +37,7 @@ la cuenta de la plataforma:
 
 | Correo | Arrendadora | Rol | Qué puede hacer |
 |---|---|---|---|
-| `super@demo.mx` | — | Superadministrador | Administra las arrendadoras (no ve sus datos) |
+| `super@demo.mx` | — | Superadministrador | Administra las arrendadoras; ve sus datos solo en modo soporte |
 | `dueno@demo.mx` | Rentas del Valle (`demo`, Premium) | Arrendador | Todo, incluida la marca y el equipo |
 | `admin@demo.mx` | Rentas del Valle | Administrativo | Propiedades, servicios, cobros e inquilinos |
 | `consulta@demo.mx` | Rentas del Valle | Consulta | **Solo lectura**: resumen y calendario |
@@ -62,7 +62,14 @@ la cuenta de la plataforma:
   se suspende o reactiva. Suspender saca de inmediato a todos sus usuarios y
   no borra nada. Cada cambio queda en la bitácora de la arrendadora.
 - **El superadministrador no ve datos de operación** (propiedades, contratos,
-  cobros): solo conteos y el equipo de cada arrendadora.
+  cobros): solo conteos y el equipo de cada arrendadora, salvo en modo soporte.
+- **Modo soporte:** desde la ficha de una arrendadora, "Entrar en modo soporte"
+  pide un motivo y abre su panel como Administrativo (opera; no toca
+  configuración, marca ni equipo) por 4 horas como máximo. Una barra recuerda
+  que se está en soporte y da la salida. Su dueño y su equipo administrativo
+  ven en su panel quién entró, cuándo y para qué (cualquier plan), y cada
+  cambio queda en su bitácora como "Soporte de …". El historial está en la
+  ficha de la arrendadora (`SupportSession`, `src/server/superadmin/support.ts`).
 - El navegador recuerda la última arrendadora con la que se entró (cookie
   `app_org`) para mandar a su acceso con marca a quien vuelve sin sesión.
 - **Primer superadministrador:** en desarrollo lo crea el seed

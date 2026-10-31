@@ -78,6 +78,7 @@ model Organization {
   airbnbConnections AirbnbConnection[]
   auditLogs         AuditLog[]
   buildingAccess    BuildingAccess[]
+  supportSessions   SupportSession[]
 }
 
 // ---------------------------------------------------------------- Usuarios
@@ -138,6 +139,8 @@ model User {
   buildingAccess   BuildingAccess[]
   payoutsReceived  OwnerPayout[]  @relation("PayoutOwner")
   payoutsRecorded  OwnerPayout[]  @relation("PayoutRecordedBy")
+  /// Sesiones de soporte que abrió (solo SUPERADMIN).
+  supportSessions  SupportSession[]
 
   @@index([organizationId, role])
 }
@@ -684,4 +687,30 @@ model BuildingAccess {
   @@unique([userId, buildingId])
   @@index([organizationId])
   @@index([buildingId])
+}
+
+enum SupportEndReason {
+  MANUAL
+  EXPIRED
+  LOGOUT
+}
+
+/// Modo soporte: acceso temporal del staff de HStay (SUPERADMIN) al panel de
+/// una arrendadora, con rol de Administrativo, motivo obligatorio y límite de
+/// tiempo. La arrendadora ve estas sesiones en su panel (ver
+/// src/server/superadmin/support.ts).
+model SupportSession {
+  id             String            @id @default(cuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  superadminId   String
+  superadmin     User              @relation(fields: [superadminId], references: [id], onDelete: Restrict)
+  reason         String
+  startedAt      DateTime          @default(now())
+  expiresAt      DateTime
+  endedAt        DateTime?
+  endReason      SupportEndReason?
+
+  @@index([organizationId, startedAt])
+  @@index([superadminId, endedAt])
 }

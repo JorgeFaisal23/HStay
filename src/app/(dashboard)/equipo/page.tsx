@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { requireOrgUser } from "@/lib/auth/session";
 import { initials, shortDate } from "@/lib/format";
-import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/labels";
+import { ROLE_DESCRIPTIONS, ROLE_LABELS, SUPPORT_ACTOR_LABEL } from "@/lib/labels";
 import { UserQuotaNote } from "@/components/shared/user-quota-note";
 import { userQuota } from "@/server/user-quota";
 import { canManageOrganization } from "@/lib/permissions";
@@ -49,7 +49,7 @@ export default async function TeamPage() {
         entity: true,
         detail: true,
         createdAt: true,
-        user: { select: { name: true } },
+        user: { select: { name: true, role: true } },
       },
     }),
     userQuota(db),
@@ -168,7 +168,9 @@ export default async function TeamPage() {
                     <div className="min-w-0">
                       <p className="font-medium">{log.action}</p>
                       <p className="text-muted-foreground text-xs">
-                        {log.user?.name ?? "Sistema"}
+                        {log.user?.role === "SUPERADMIN"
+                          ? `${SUPPORT_ACTOR_LABEL} · ${log.user.name}`
+                          : (log.user?.name ?? "Sistema")}
                         {log.detail ? ` · ${log.detail}` : ""}
                       </p>
                     </div>

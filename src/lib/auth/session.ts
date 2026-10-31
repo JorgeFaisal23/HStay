@@ -7,10 +7,13 @@ import { homePathFor } from "@/lib/permissions";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
+  type EffectiveSession,
   type OrgRole,
   type Role,
   type SessionPayload,
+  effectiveSession,
   signSession,
+  supportExpired,
   verifySession,
 } from "./jwt";
 
@@ -20,6 +23,15 @@ export { loginPathFor } from "./paths";
 export async function getSession(): Promise<SessionPayload | null> {
   const store = await cookies();
   return verifySession(store.get(SESSION_COOKIE)?.value);
+}
+
+/**
+ * La sesión con la que se decide qué se ve (ver `effectiveSession`). Solo lee
+ * el token; la vigencia la imponen requireUser y requireUserAction.
+ */
+export async function getEffectiveSession(): Promise<EffectiveSession | null> {
+  const session = await getSession();
+  return session ? effectiveSession(session) : null;
 }
 
 export async function createSession(payload: SessionPayload) {
@@ -108,6 +120,45 @@ export async function findSessionProblem(
   return null;
 }
 
+/** Cierra un modo soporte vencido o terminado y regresa al panel de plataforma. */
+export const SUPPORT_END_PATH = "/soporte/terminar";
+
+const SUPPORT_ENDED_MESSAGE =
+  "Tu sesión de soporte terminó. Vuelve a entrar desde el panel de plataforma.";
+
+const loadSupport = cache(async (id: string) =>
+  prisma.supportSession.findUnique({
+    where: { id },
+    select: {
+      superadminId: true,
+      organizationId: true,
+      expiresAt: true,
+      endedAt: true,
+      organization: { select: { status: true } },
+    },
+  }),
+);
+
+/**
+ * ¿El modo soporte de la sesión ya no vale? Además del vencimiento del token,
+ * la base manda: la fila debe seguir abierta, ser de este superadministrador y
+ * de esa arrendadora, y la arrendadora debe estar activa.
+ */
+export async function supportEnded(session: SessionPayload, now = new Date()): Promise<boolean> {
+  const { support } = session;
+  if (!support) return false;
+  if (supportExpired(support, now)) return true;
+  const row = await loadSupport(support.id);
+  return (
+    !row ||
+    row.endedAt !== null ||
+    row.expiresAt <= now ||
+    row.superadminId !== session.sub ||
+    row.organizationId !== support.orgId ||
+    row.organization.status !== "ACTIVE"
+  );
+}
+
 /** Ruta del cambio obligatorio de contraseña (cuenta con contraseña temporal). */
 export const FORCED_PASSWORD_PATH = "/cambiar-contrasena";
 
@@ -132,24 +183,29 @@ export async function mustChangePassword(session: SessionPayload) {
 export async function requireUser(
   roles?: Role[],
   options: RequireOptions = {},
-): Promise<SessionPayload> {
+): Promise<EffectiveSession> {
   const session = await getSession();
   if (!session) redirect("/login");
 
   const problem = await findSessionProblem(session);
   if (problem) redirect(`/salir?motivo=${problem}`);
 
+  // Un soporte vencido no cierra la sesión del superadministrador: solo lo
+  // saca de la arrendadora.
+  if (await supportEnded(session)) redirect(SUPPORT_END_PATH);
+
   // Con contraseña temporal no se usa la app hasta elegir una propia.
   if (!options.allowPendingPasswordChange && (await mustChangePassword(session))) {
     redirect(FORCED_PASSWORD_PATH);
   }
 
-  if (roles && !roles.includes(session.role)) redirect(homePathFor(session.role));
-  return session;
+  const effective = effectiveSession(session);
+  if (roles && !roles.includes(effective.role)) redirect(homePathFor(effective.role));
+  return effective;
 }
 
 /** Sesión de un usuario de arrendadora: el orgId y el slug siempre existen. */
-export type OrgSession = SessionPayload & {
+export type OrgSession = EffectiveSession & {
   role: OrgRole;
   orgId: string;
   orgSlug: string;
@@ -162,7 +218,7 @@ export type OrgContext = {
   db: OrgDb;
 };
 
-function toOrgContext(session: SessionPayload): OrgContext | null {
+function toOrgContext(session: EffectiveSession): OrgContext | null {
   if (session.role === "SUPERADMIN" || !session.orgId || !session.orgSlug) {
     return null;
   }
@@ -191,7 +247,7 @@ export async function requireSuperadmin(): Promise<SessionPayload> {
 export async function requireUserAction(
   roles?: Role[],
   options: RequireOptions = {},
-): Promise<SessionPayload> {
+): Promise<EffectiveSession> {
   const session = await getSession();
   if (!session) throw new Error("Sesión no válida. Vuelve a iniciar sesión.");
 
@@ -201,14 +257,17 @@ export async function requireUserAction(
     throw new Error(PROBLEM_MESSAGES[problem]);
   }
 
+  if (await supportEnded(session)) throw new Error(SUPPORT_ENDED_MESSAGE);
+
   if (!options.allowPendingPasswordChange && (await mustChangePassword(session))) {
     throw new Error("Primero cambia tu contraseña temporal.");
   }
 
-  if (roles && !roles.includes(session.role)) {
+  const effective = effectiveSession(session);
+  if (roles && !roles.includes(effective.role)) {
     throw new Error("No tienes permiso para realizar esta acción.");
   }
-  return session;
+  return effective;
 }
 
 export async function requireOrgUserAction(roles?: OrgRole[]): Promise<OrgContext> {
@@ -223,14 +282,40 @@ export async function requireSuperadminAction(): Promise<SessionPayload> {
 }
 
 /**
+ * Para terminar el modo soporte: la sesión real del superadministrador, con
+ * su claim de soporte aunque ya haya vencido (justo para poder cerrarlo).
+ */
+export async function requireSupportAction(): Promise<SessionPayload & { support: NonNullable<SessionPayload["support"]> }> {
+  const session = await getSession();
+  if (!session) throw new Error("Sesión no válida. Vuelve a iniciar sesión.");
+
+  const problem = await findSessionProblem(session);
+  if (problem) {
+    await destroySession();
+    throw new Error(PROBLEM_MESSAGES[problem]);
+  }
+
+  const { support } = session;
+  if (session.role !== "SUPERADMIN" || !support) {
+    throw new Error("No hay una sesión de soporte abierta.");
+  }
+  return { ...session, support };
+}
+
+/**
  * Para el monitor en cliente: devuelve el problema de la sesión (y la cierra)
  * o null si sigue activa.
  */
-export async function checkSessionProblem(): Promise<SessionProblem | "sin_sesion" | null> {
+export async function checkSessionProblem(): Promise<
+  SessionProblem | "sin_sesion" | "soporte_terminado" | null
+> {
   const session = await getSession();
   if (!session) return "sin_sesion";
 
   const problem = await findSessionProblem(session);
-  if (problem) await destroySession();
-  return problem;
+  if (problem) {
+    await destroySession();
+    return problem;
+  }
+  return (await supportEnded(session)) ? "soporte_terminado" : null;
 }

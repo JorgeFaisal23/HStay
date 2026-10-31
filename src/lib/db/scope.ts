@@ -24,6 +24,9 @@ export const TENANT_MODELS: ReadonlySet<Prisma.ModelName> = new Set<Prisma.Model
   "AirbnbConnection",
   "AuditLog",
   "BuildingAccess",
+  // Solo la plataforma la escribe (src/server/superadmin/support.ts); la
+  // arrendadora la lee con alcance para ver quién entró a darle soporte.
+  "SupportSession",
 ]);
 
 /**

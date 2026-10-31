@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { initials } from "@/lib/format";
-import { ROLE_LABELS } from "@/lib/labels";
+import { ROLE_LABELS, SUPPORT_ACTOR_LABEL } from "@/lib/labels";
 import type { Role } from "@/lib/auth/jwt";
 import { logout } from "@/app/login/actions";
 import { AuroraMenuGroup } from "@/components/layout/aurora-menu";
@@ -26,7 +26,7 @@ import { AuroraMenuGroup } from "@/components/layout/aurora-menu";
 export function UserMenu({
   user,
 }: {
-  user: { name: string; email: string; role: Role };
+  user: { name: string; email: string; role: Role; support?: boolean };
 }) {
   const { theme, setTheme } = useTheme();
   const isDark = theme === "dark";
@@ -48,7 +48,7 @@ export function UserMenu({
                     {user.name}
                   </span>
                   <span className="text-muted-foreground truncate text-xs">
-                    {ROLE_LABELS[user.role]}
+                    {user.support ? SUPPORT_ACTOR_LABEL : ROLE_LABELS[user.role]}
                   </span>
                 </div>
                 <ChevronsUpDown className="ml-auto size-4" aria-hidden />
@@ -67,10 +67,14 @@ export function UserMenu({
               </p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href="/cuenta" />}>
-              <UserRound className="size-4" aria-hidden />
-              Mi cuenta
-            </DropdownMenuItem>
+            {/* En soporte la cuenta sería la del superadministrador: se
+                administra desde el panel de plataforma. */}
+            {user.support ? null : (
+              <DropdownMenuItem render={<Link href="/cuenta" />}>
+                <UserRound className="size-4" aria-hidden />
+                Mi cuenta
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onClick={() => setTheme(isDark ? "light" : "dark")}
             >

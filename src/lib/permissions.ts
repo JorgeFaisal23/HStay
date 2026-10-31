@@ -42,8 +42,17 @@ export function canManageOrganization(role: Role) {
 /** Cambio obligatorio de contraseña: cualquier rol con sesión. */
 const ANY_ROLE_PATHS = ["/cambiar-contrasena"];
 
+/**
+ * En modo soporte, además de lo que no ve un Administrativo: la cuenta
+ * personal (sería la del superadministrador) y el cambio de contraseña.
+ */
+const SUPPORT_BLOCKED_PREFIXES = ["/cuenta", "/cambiar-contrasena"];
+
 /** Decide si un rol puede abrir una ruta concreta. */
-export function canAccessPath(role: Role, pathname: string) {
+export function canAccessPath(role: Role, pathname: string, { support = false } = {}) {
+  if (support && SUPPORT_BLOCKED_PREFIXES.some((prefix) => under(pathname, prefix))) {
+    return false;
+  }
   if (ANY_ROLE_PATHS.includes(pathname)) return true;
 
   // La plataforma y las arrendadoras no se mezclan: el superadministrador no

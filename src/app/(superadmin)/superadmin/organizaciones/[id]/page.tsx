@@ -13,8 +13,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { requireSuperadmin } from "@/lib/auth/session";
-import { getOrganizationDetail } from "@/server/superadmin/queries";
-import { ROLE_LABELS } from "@/lib/labels";
+import { getOrganizationDetail, getSupportHistory } from "@/server/superadmin/queries";
+import { ROLE_LABELS, SUPPORT_END_REASON_LABELS } from "@/lib/labels";
+import { SUPPORT_DURATION_HOURS } from "@/lib/support";
+import { Callout } from "@/components/shared/callout";
+import { LocalTime } from "@/components/shared/local-time";
+import { SupportEntry } from "./support-entry";
 import { shortDate } from "@/lib/format";
 import { SupportActions } from "@/components/superadmin/support-actions";
 import {
@@ -25,6 +29,7 @@ import {
 } from "./org-controls";
 
 type Params = { params: Promise<{ id: string }> };
+type PageProps = Params & { searchParams: Promise<{ soporte?: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   await requireSuperadmin();
@@ -33,11 +38,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   return { title: org?.name ?? "Arrendadora" };
 }
 
-export default async function OrganizationPage({ params }: Params) {
+export default async function OrganizationPage({ params, searchParams }: PageProps) {
   await requireSuperadmin();
-  const { id } = await params;
-  const org = await getOrganizationDetail(id);
+  const [{ id }, { soporte }] = await Promise.all([params, searchParams]);
+  const [org, supportHistory] = await Promise.all([getOrganizationDetail(id), getSupportHistory(id)]);
   if (!org) notFound();
+  const now = new Date();
 
   const loginPath = `/a/${org.slug}/login`;
   const used = org.activeUsers;
@@ -78,6 +84,12 @@ export default async function OrganizationPage({ params }: Params) {
           <ExternalLink className="size-3" aria-hidden />
         </Link>
       </div>
+
+      {soporte === "terminado" ? (
+        <Callout tone="info">
+          La sesión de soporte terminó. Si necesitas seguir, vuelve a entrar con un motivo.
+        </Callout>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-4">
         <Count label="Propiedades" value={org.buildings} />
@@ -164,6 +176,58 @@ export default async function OrganizationPage({ params }: Params) {
           </Card>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Soporte</CardTitle>
+          <CardDescription>
+            Entra a su panel como Administrativo para revisar o corregir su operación
+            (no su configuración ni su equipo). Dura hasta {SUPPORT_DURATION_HOURS} horas,
+            pide un motivo y su dueño lo ve en su panel.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SupportEntry orgId={org.id} name={org.name} disabled={org.status !== "ACTIVE"} />
+          {org.status !== "ACTIVE" ? (
+            <p className="text-muted-foreground text-sm">
+              Con el acceso suspendido no se puede dar soporte. Reactívalo primero.
+            </p>
+          ) : null}
+          {supportHistory.length > 0 ? (
+            <ul className="divide-y">
+              {supportHistory.map((entry) => {
+                const open = entry.endedAt === null && entry.expiresAt > now;
+                return (
+                  <li key={entry.id} className="space-y-1 py-3 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge tone={open ? "warning" : "neutral"}>
+                        {open
+                          ? "Abierta"
+                          : entry.endReason
+                            ? SUPPORT_END_REASON_LABELS[entry.endReason]
+                            : SUPPORT_END_REASON_LABELS.EXPIRED}
+                      </StatusBadge>
+                      <span className="text-sm font-medium">{entry.superadmin.name}</span>
+                      <span className="text-muted-foreground text-xs">
+                        <LocalTime value={entry.startedAt} format="dateTime" />
+                        {entry.endedAt ? (
+                          <>
+                            {" – "}
+                            <LocalTime value={entry.endedAt} />
+                          </>
+                        ) : null}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground text-sm">{entry.reason}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground text-sm">Nadie de la plataforma ha entrado todavía.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
