@@ -25,7 +25,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getSession, requireUser } from "@/lib/auth/session";
 import { canEdit } from "@/lib/permissions";
-import { getTenantDetail } from "@/lib/queries/tenants";
+import { getAssignableUnits, getTenantDetail } from "@/lib/queries/tenants";
 import {
   deadlineLabel,
   initials,
@@ -38,8 +38,11 @@ import {
   CHARGE_STATUS_LABELS,
   CHARGE_STATUS_TONES,
   LEASE_STATUS_LABELS,
+  LEASE_STATUS_TONES,
   SERVICE_TYPE_LABELS,
 } from "@/lib/labels";
+import { EditTenantDialog } from "./edit-tenant-dialog";
+import { AssignLeaseDialog, LeaseActions } from "./lease-actions";
 
 export async function generateMetadata({
   params,
@@ -59,7 +62,10 @@ export default async function TenantDetailPage({
 }) {
   const session = await requireUser(["OWNER", "ADMIN"]);
   const { id } = await params;
-  const tenant = await getTenantDetail(id, session.organizationId);
+  const [tenant, assignableUnits] = await Promise.all([
+    getTenantDetail(id, session.organizationId),
+    getAssignableUnits(session.organizationId),
+  ]);
 
   if (!tenant) notFound();
 
@@ -87,7 +93,11 @@ export default async function TenantDetailPage({
         }
         action={
           editable && !lease ? (
-            <ButtonLink href="/inquilinos/nuevo">Asignar unidad</ButtonLink>
+            <AssignLeaseDialog
+              tenantId={tenant.id}
+              tenantName={tenant.name}
+              units={assignableUnits}
+            />
           ) : null
         }
       />
@@ -102,20 +112,36 @@ export default async function TenantDetailPage({
                   {initials(tenant.name)}
                 </AvatarFallback>
               </Avatar>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <CardTitle className="truncate">{tenant.name}</CardTitle>
                 <CardDescription>
                   Alta el {shortDate(tenant.createdAt)}
                 </CardDescription>
               </div>
+              {editable ? (
+                <EditTenantDialog
+                  tenant={{
+                    id: tenant.id,
+                    name: tenant.name,
+                    email: tenant.email,
+                    phone: tenant.phone,
+                    documentId: tenant.documentId,
+                    notes: tenant.notes,
+                  }}
+                />
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p className="flex items-center gap-2">
               <Mail className="text-muted-foreground size-4 shrink-0" aria-hidden />
-              <a href={`mailto:${tenant.email}`} className="truncate hover:underline">
-                {tenant.email}
-              </a>
+              {tenant.email ? (
+                <a href={`mailto:${tenant.email}`} className="truncate hover:underline">
+                  {tenant.email}
+                </a>
+              ) : (
+                <span className="text-muted-foreground">Sin correo · sin acceso al portal</span>
+              )}
             </p>
             {tenant.phone ? (
               <p className="flex items-center gap-2">
@@ -163,7 +189,11 @@ export default async function TenantDetailPage({
               <EmptyState
                 icon={FileText}
                 title="Sin contrato vigente"
-                description="Este inquilino no tiene una unidad asignada actualmente."
+                description={
+                  tenant.otherLeases.length > 0
+                    ? "Sus contratos anteriores están abajo; desde ahí puedes renovarlos."
+                    : "Este inquilino no tiene una unidad asignada actualmente."
+                }
               />
             ) : (
               <div className="space-y-5">
@@ -186,15 +216,29 @@ export default async function TenantDetailPage({
                   </ButtonLink>
                 </div>
 
-                <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                   <Detail label="Inicio" value={longDate(lease.startDate)} />
                   <Detail label="Vencimiento" value={longDate(lease.endDate)} />
-                  <Detail label="Renta" value={money(lease.rentAmount)} />
+                  <Detail label="Renta" value={money(lease.rentAmount, lease.terms.currency)} />
                   <Detail
                     label="Depósito"
-                    value={lease.depositAmount ? money(lease.depositAmount) : "—"}
+                    value={lease.depositAmount ? money(lease.depositAmount, lease.terms.currency) : "—"}
                   />
+                  <Detail label="Día de pago" value={`Día ${lease.paymentDay}`} />
                 </dl>
+
+                {lease.notes ? (
+                  <p className="text-muted-foreground text-xs whitespace-pre-line text-pretty">
+                    {lease.notes}
+                  </p>
+                ) : null}
+
+                {editable ? (
+                  <LeaseActions
+                    lease={lease.terms}
+                    label={`${lease.unit.buildingName} · ${lease.unit.code}`}
+                  />
+                ) : null}
 
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Servicios de la unidad</p>
@@ -305,25 +349,38 @@ export default async function TenantDetailPage({
         </CardContent>
       </Card>
 
-      {tenant.pastLeases.length > 0 ? (
+      {tenant.otherLeases.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>Contratos anteriores</CardTitle>
+            <CardTitle>{lease ? "Otros contratos" : "Contratos anteriores"}</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="divide-y text-sm">
-              {tenant.pastLeases.map((past) => (
-                <li
-                  key={past.id}
-                  className="flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0 last:pb-0"
-                >
-                  <span>
-                    {past.buildingName} · {past.unitCode}
-                  </span>
-                  <span className="text-muted-foreground text-xs tabular-nums">
-                    {shortDate(past.startDate)} — {shortDate(past.endDate)} ·{" "}
-                    {LEASE_STATUS_LABELS[past.status]}
-                  </span>
+              {tenant.otherLeases.map((other) => (
+                <li key={other.id} className="space-y-2 py-3 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Link href={`/unidades/${other.unitId}`} className="font-medium hover:underline">
+                      {other.buildingName} · {other.unitCode}
+                    </Link>
+                    <StatusBadge tone={LEASE_STATUS_TONES[other.status]}>
+                      {LEASE_STATUS_LABELS[other.status]}
+                    </StatusBadge>
+                  </div>
+                  <p className="text-muted-foreground text-xs tabular-nums">
+                    {shortDate(other.startDate)} — {shortDate(other.endDate)} ·{" "}
+                    {money(other.rentAmount, other.currency)} · día {other.paymentDay}
+                  </p>
+                  {other.notes ? (
+                    <p className="text-muted-foreground text-xs whitespace-pre-line text-pretty">
+                      {other.notes}
+                    </p>
+                  ) : null}
+                  {editable ? (
+                    <LeaseActions
+                      lease={other}
+                      label={`${other.buildingName} · ${other.unitCode}`}
+                    />
+                  ) : null}
                 </li>
               ))}
             </ul>

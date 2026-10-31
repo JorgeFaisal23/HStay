@@ -12,6 +12,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:import:carcar": "tsx scripts/import-carcar-portfolio.ts",
+    "db:import:ocupacion": "tsx scripts/import-occupancy.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
     "postinstall": "prisma generate"

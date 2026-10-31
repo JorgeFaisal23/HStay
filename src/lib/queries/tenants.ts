@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { toNumber, daysBetween, periodKey } from "@/lib/format";
+import { suggestRenewal, utcDay } from "@/lib/services/lease-renewal";
 
 /** Listado de inquilinos con el estado de su contrato y de su último pago. */
 export async function getTenants(organizationId?: string | null) {
@@ -93,12 +94,18 @@ export async function getTenantDetail(
           rentAmount: true,
           depositAmount: true,
           paymentDay: true,
+          notes: true,
           unit: {
             select: {
               id: true,
               code: true,
               baseRent: true,
+              currency: true,
               building: { select: { id: true, name: true, address: true } },
+              leases: {
+                where: { status: "ACTIVE" },
+                select: { id: true },
+              },
               serviceAccounts: {
                 select: {
                   type: true,
@@ -132,6 +139,33 @@ export async function getTenantDetail(
   if (!tenant) return null;
 
   const activeLease = tenant.leases.find((l) => l.status === "ACTIVE") ?? null;
+  const today = utcDay(new Date());
+  const allLeases = tenant.leases;
+
+  // Datos que necesitan las acciones de editar / renovar / terminar.
+  function leaseTerms(l: (typeof allLeases)[number]) {
+    const startDate = utcDay(l.startDate);
+    const endDate = utcDay(l.endDate);
+    // Se renueva el contrato más reciente de cada unidad, y solo si la unidad
+    // no tiene ya otro contrato vigente.
+    const isLatestForUnit = !allLeases.some(
+      (other) => other.unit.id === l.unit.id && other.startDate > l.startDate,
+    );
+    const otherActive = l.unit.leases.some((a) => a.id !== l.id);
+    return {
+      id: l.id,
+      status: l.status,
+      currency: l.unit.currency,
+      startDate,
+      endDate,
+      rentAmount: toNumber(l.rentAmount),
+      depositAmount: l.depositAmount === null ? null : toNumber(l.depositAmount),
+      paymentDay: l.paymentDay,
+      notes: l.notes,
+      canRenew: l.status !== "CANCELLED" && isLatestForUnit && !otherActive,
+      renewal: suggestRenewal(startDate, endDate, today),
+    };
+  }
 
   return {
     id: tenant.id,
@@ -150,6 +184,8 @@ export async function getTenantDetail(
           rentAmount: toNumber(activeLease.rentAmount),
           depositAmount: toNumber(activeLease.depositAmount),
           paymentDay: activeLease.paymentDay,
+          notes: activeLease.notes,
+          terms: leaseTerms(activeLease),
           daysLeft: daysBetween(new Date(), activeLease.endDate),
           unit: {
             id: activeLease.unit.id,
@@ -178,13 +214,13 @@ export async function getTenantDetail(
           })),
         }
       : null,
-    pastLeases: tenant.leases
-      .filter((l) => l.status !== "ACTIVE")
+    // Todos los demás contratos: los terminados y, si renta más de una unidad,
+    // sus otros contratos vigentes.
+    otherLeases: allLeases
+      .filter((l) => l.id !== activeLease?.id)
       .map((l) => ({
-        id: l.id,
-        status: l.status,
-        startDate: l.startDate,
-        endDate: l.endDate,
+        ...leaseTerms(l),
+        unitId: l.unit.id,
         unitCode: l.unit.code,
         buildingName: l.unit.building.name,
       })),
@@ -192,11 +228,12 @@ export async function getTenantDetail(
 }
 
 /** Unidades sin contrato activo, para asignar un inquilino nuevo. */
-export async function getAssignableUnits() {
+export async function getAssignableUnits(organizationId?: string | null) {
   const units = await prisma.unit.findMany({
     where: {
       status: { in: ["AVAILABLE", "OCCUPIED"] },
       leases: { none: { status: "ACTIVE" } },
+      ...(organizationId ? { building: { organizationId } } : {}),
     },
     orderBy: [{ building: { name: "asc" } }, { code: "asc" }],
     select: {

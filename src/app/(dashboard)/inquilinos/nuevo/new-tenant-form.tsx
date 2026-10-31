@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { useState } from "react";
+import Link from "next/link";
+import { useFormAction } from "@/hooks/use-form-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,11 +10,9 @@ import { ButtonLink } from "@/components/shared/button-link";
 import { Field, FormError, NativeSelect } from "@/components/shared/form-field";
 import { Separator } from "@/components/ui/separator";
 import { createTenant } from "@/server/actions/tenants";
-import type { ActionResult } from "@/server/actions/properties";
 import { money } from "@/lib/format";
 
-function Submit() {
-  const { pending } = useFormStatus();
+function Submit({ pending }: { pending: boolean }) {
   return (
     <Button type="submit" disabled={pending}>
       {pending ? "Guardando…" : "Guardar inquilino"}
@@ -35,16 +34,14 @@ export function NewTenantForm({
   units: { id: string; code: string; buildingName: string; baseRent: number }[];
   defaultUnitId?: string;
 }) {
-  const [state, formAction] = useActionState<ActionResult, FormData>(
-    createTenant,
-    {},
-  );
+  // onSubmit en vez de action: si hay un error, lo capturado no se borra.
+  const { onSubmit, pending, error } = useFormAction(createTenant);
   const [unitId, setUnitId] = useState(defaultUnitId ?? "");
 
   const selectedUnit = units.find((u) => u.id === unitId);
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6">
       {/* ------------------------------------------------- datos personales */}
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -54,14 +51,12 @@ export function NewTenantForm({
           <Field
             label="Correo electrónico"
             htmlFor="email"
-            required
-            hint="Con este correo entrará a su portal."
+            hint="Con este correo entrará a su portal. Sin correo no tendrá acceso."
           >
             <Input
               id="email"
               name="email"
               type="email"
-              required
               placeholder="maria@ejemplo.com"
             />
           </Field>
@@ -98,6 +93,13 @@ export function NewTenantForm({
           <p className="text-muted-foreground text-sm text-pretty">
             Si ya sabes qué unidad ocupará, regístralo aquí y el contrato queda
             listo. También puedes hacerlo después.
+          </p>
+          <p className="text-muted-foreground mt-1 text-sm text-pretty">
+            ¿Es una estancia corta (noches, semanas o unos meses)? Captúrala en{" "}
+            <Link href="/reservas/nueva" className="text-primary underline-offset-4 hover:underline">
+              Nueva reserva
+            </Link>
+            : una unidad puede tener varias reservas a futuro.
           </p>
         </div>
 
@@ -167,14 +169,14 @@ export function NewTenantForm({
               <Field
                 label="Día de pago"
                 htmlFor="paymentDay"
-                hint="Del 1 al 28."
+                hint="Del 1 al 31. Si el mes es más corto, se cobra el último día."
               >
                 <Input
                   id="paymentDay"
                   name="paymentDay"
                   type="number"
                   min={1}
-                  max={28}
+                  max={31}
                   defaultValue={1}
                   className="tabular-nums"
                 />
@@ -184,13 +186,13 @@ export function NewTenantForm({
         ) : null}
       </div>
 
-      <FormError message={state.error} />
+      <FormError message={error} />
 
       <div className="flex flex-wrap justify-end gap-2">
         <ButtonLink href="/inquilinos" variant="outline">
           Cancelar
         </ButtonLink>
-        <Submit />
+        <Submit pending={pending} />
       </div>
     </form>
   );

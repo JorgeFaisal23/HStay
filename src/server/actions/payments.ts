@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUserAction } from "@/lib/auth/session";
 import { periodToDate } from "@/lib/format";
+import { rentDueDate } from "@/lib/services/rent-schedule";
 import { logAction } from "@/server/actions/audit";
 import { saveFile } from "@/lib/storage";
 import type { ActionResult } from "@/server/actions/properties";
@@ -40,19 +41,12 @@ export async function generateMonthlyCharges(
 
   if (leases.length === 0) return { ok: true, created: 0 };
 
-  const lastDay = monthEnd.getDate();
-
   await prisma.rentCharge.createMany({
     data: leases.map((lease) => ({
       leaseId: lease.id,
       period,
       // Si el contrato dice "día 31" y el mes tiene 30, se cobra el último día.
-      dueDate: new Date(
-        monthStart.getFullYear(),
-        monthStart.getMonth(),
-        Math.min(lease.paymentDay, lastDay),
-        12,
-      ),
+      dueDate: rentDueDate(period, lease.paymentDay),
       amount: lease.rentAmount,
       status: "PENDING",
     })),

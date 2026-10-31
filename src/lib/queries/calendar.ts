@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { toNumber, periodToDate } from "@/lib/format";
+import { money, periodToDate, type Decimalish } from "@/lib/format";
 
 /**
  * Datos del calendario global: contratos de largo plazo y reservas de corta
@@ -24,7 +24,18 @@ export type CalendarBar = {
   continuesBefore: boolean;
   continuesAfter: boolean;
   detail: string;
+  /** A dónde lleva al hacer clic: la reserva o el inquilino. */
+  href: string;
 };
+
+/** Sin acentos ni mayúsculas, para que "maria" encuentre "María". */
+function normalize(text: string) {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -34,6 +45,7 @@ export async function getCalendarData(
   period: string,
   buildingId?: string,
   organizationId?: string | null,
+  search?: string,
 ) {
   const monthStart = periodToDate(period);
   const year = monthStart.getFullYear();
@@ -42,6 +54,12 @@ export async function getCalendarData(
   const monthEnd = new Date(year, month, totalDays, 23, 59, 59);
 
   const orgFilter = organizationId ? { organizationId } : undefined;
+  // Un solo filtro de unidad (propiedad + organización) para contratos y
+  // reservas; antes uno pisaba al otro y el filtro por propiedad se perdía.
+  const unitFilter = {
+    ...(buildingId ? { buildingId } : {}),
+    ...(organizationId ? { building: orgFilter } : {}),
+  };
 
   const [buildings, units, leases, bookings] = await Promise.all([
     prisma.building.findMany({
@@ -50,15 +68,13 @@ export async function getCalendarData(
       orderBy: { name: "asc" },
     }),
     prisma.unit.findMany({
-      where: {
-        ...(buildingId ? { buildingId } : {}),
-        ...(organizationId ? { building: orgFilter } : {}),
-      },
+      where: unitFilter,
       orderBy: [{ building: { name: "asc" } }, { code: "asc" }],
       select: {
         id: true,
         code: true,
         status: true,
+        currency: true,
         building: { select: { id: true, name: true } },
       },
     }),
@@ -67,8 +83,7 @@ export async function getCalendarData(
         status: "ACTIVE",
         startDate: { lte: monthEnd },
         endDate: { gte: monthStart },
-        ...(buildingId ? { unit: { buildingId } } : {}),
-        ...(organizationId ? { unit: { building: orgFilter } } : {}),
+        unit: unitFilter,
       },
       select: {
         id: true,
@@ -76,7 +91,7 @@ export async function getCalendarData(
         startDate: true,
         endDate: true,
         rentAmount: true,
-        tenant: { select: { name: true } },
+        tenant: { select: { id: true, name: true } },
       },
     }),
     prisma.booking.findMany({
@@ -84,8 +99,7 @@ export async function getCalendarData(
         status: { not: "CANCELLED" },
         checkIn: { lte: monthEnd },
         checkOut: { gte: monthStart },
-        ...(buildingId ? { unit: { buildingId } } : {}),
-        ...(organizationId ? { unit: { building: orgFilter } } : {}),
+        unit: unitFilter,
       },
       select: {
         id: true,
@@ -99,6 +113,10 @@ export async function getCalendarData(
       },
     }),
   ]);
+
+  const unitCurrency = new Map(units.map((u) => [u.id, u.currency]));
+  const amount = (value: Decimalish, unitId: string) =>
+    money(value, unitCurrency.get(unitId) ?? "MXN");
 
   /** Recorta un intervalo al mes visible y lo expresa en días del mes. */
   function clip(start: Date, end: Date) {
@@ -129,7 +147,8 @@ export async function getCalendarData(
       endDay,
       continuesBefore: startsBefore,
       continuesAfter: endsAfter,
-      detail: `Contrato de arrendamiento · ${toNumber(lease.rentAmount).toLocaleString("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 })} al mes`,
+      detail: `Contrato de arrendamiento · ${amount(lease.rentAmount, lease.unitId)} al mes`,
+      href: `/inquilinos/${lease.tenant.id}`,
     });
   }
 
@@ -137,6 +156,8 @@ export async function getCalendarData(
     // La salida libera la unidad ese mismo día: la barra termina el día previo.
     const lastNight = new Date(booking.checkOut.getTime() - 86_400_000);
     const effectiveEnd = lastNight < booking.checkIn ? booking.checkIn : lastNight;
+    // Una reserva que sale el día 1 no ocupa ninguna noche de este mes.
+    if (effectiveEnd < monthStart) continue;
     const { startDay, endDay, startsBefore, endsAfter } = clip(
       booking.checkIn,
       effectiveEnd,
@@ -149,11 +170,12 @@ export async function getCalendarData(
       endDay,
       continuesBefore: startsBefore,
       continuesAfter: endsAfter,
-      detail: `${booking.guests} ${booking.guests === 1 ? "huésped" : "huéspedes"} · ${toNumber(booking.totalAmount).toLocaleString("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 })}`,
+      detail: `${booking.guests} ${booking.guests === 1 ? "huésped" : "huéspedes"} · ${amount(booking.totalAmount, booking.unitId)}`,
+      href: `/reservas/${booking.id}`,
     });
   }
 
-  const rows = units.map((unit) => ({
+  const allRows = units.map((unit) => ({
     unitId: unit.id,
     code: unit.code,
     status: unit.status,
@@ -161,6 +183,19 @@ export async function getCalendarData(
     buildingName: unit.building.name,
     bars: (barsByUnit.get(unit.id) ?? []).sort((a, b) => a.startDay - b.startDay),
   }));
+
+  // Búsqueda: unidades cuyo código coincide o que tienen en el mes una
+  // estancia de ese huésped.
+  const needle = normalize(search ?? "");
+  const rows = needle
+    ? allRows.filter(
+        (row) =>
+          normalize(row.code).includes(needle) ||
+          row.bars.some((bar) => normalize(bar.label).includes(needle)),
+      )
+    : allRows;
+
+  const unitCodes = new Map(units.map((u) => [u.id, u.code]));
 
   // Eventos por día para la vista de mes.
   const events = [
@@ -171,6 +206,7 @@ export async function getCalendarData(
       label: b.guestName,
       unitId: b.unitId,
       source: b.source,
+      href: `/reservas/${b.id}`,
     })),
     ...bookings.map((b) => ({
       id: `out-${b.id}`,
@@ -179,10 +215,17 @@ export async function getCalendarData(
       label: b.guestName,
       unitId: b.unitId,
       source: b.source,
+      href: `/reservas/${b.id}`,
     })),
-  ].filter((e) => e.date >= monthStart && e.date <= monthEnd);
-
-  const unitCodes = new Map(units.map((u) => [u.id, u.code]));
+  ]
+    .filter((e) => e.date >= monthStart && e.date <= monthEnd)
+    .map((e) => ({ ...e, unitCode: unitCodes.get(e.unitId) ?? "" }))
+    .filter(
+      (e) =>
+        !needle ||
+        normalize(e.unitCode).includes(needle) ||
+        normalize(e.label).includes(needle),
+    );
 
   return {
     period,
@@ -191,11 +234,12 @@ export async function getCalendarData(
     totalDays,
     buildings,
     rows,
-    events: events.map((e) => ({ ...e, unitCode: unitCodes.get(e.unitId) ?? "" })),
+    events,
     counts: {
       leases: leases.length,
       bookings: bookings.length,
       units: units.length,
+      shown: rows.length,
     },
   };
 }

@@ -31,11 +31,14 @@ export function Timeline({
   year,
   month,
   totalDays,
+  linkable = true,
 }: {
   rows: TimelineRow[];
   year: number;
   month: number;
   totalDays: number;
+  /** Solo quien puede editar abre la reserva o el inquilino al hacer clic. */
+  linkable?: boolean;
 }) {
   const days = Array.from({ length: totalDays }, (_, i) => i + 1);
   const today = new Date();
@@ -136,10 +139,11 @@ export function Timeline({
                       }}
                       className="px-px"
                     >
-                      <div
+                      <BarTag
+                        href={linkable ? bar.href : undefined}
                         title={`${bar.label} — ${bar.detail}`}
                         className={cn(
-                          "flex h-6 items-center overflow-hidden rounded px-1.5 text-[11px] font-medium",
+                          "flex h-6 items-center overflow-hidden rounded px-1.5 text-[11px] font-medium transition hover:opacity-85 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                           BAR_STYLES[bar.kind],
                           bar.continuesBefore && "rounded-l-none",
                           bar.continuesAfter && "rounded-r-none",
@@ -150,7 +154,7 @@ export function Timeline({
                           {bar.label}
                           {bar.continuesAfter ? " ›" : ""}
                         </span>
-                      </div>
+                      </BarTag>
                     </div>
                   ))}
                 </div>
@@ -161,6 +165,17 @@ export function Timeline({
       </div>
     </div>
   );
+}
+
+/** Barra como enlace si hay a dónde ir; si no, un bloque sin interacción. */
+function BarTag({
+  href,
+  ...props
+}: { href?: string } & React.ComponentProps<"div">) {
+  if (href) {
+    return <Link href={href} {...(props as React.ComponentProps<"a">)} />;
+  }
+  return <div {...props} />;
 }
 
 export function TimelineLegend() {

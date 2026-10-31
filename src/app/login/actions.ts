@@ -64,7 +64,7 @@ export async function login(
 
   await createSession({
     sub: user.id,
-    email: user.email,
+    email: user.email ?? email,
     name: user.name,
     role: user.role,
     organizationId,

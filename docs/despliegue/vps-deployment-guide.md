@@ -187,6 +187,32 @@ docker compose exec web npm run db:migrate
 docker compose exec web npm run db:import:carcar
 ```
 
+### Importar ocupación (inquilinos, contratos y servicio de luz)
+Los archivos de ocupación traen datos personales y **no viajan con git**
+(viven en `docs/clientes/<cliente>/privado/`). Se copian a mano, se importan y se borran.
+
+```bash
+# 1. Desde tu computadora: subir el archivo al servidor
+scp docs/clientes/carcar/privado/chichen-ocupacion.json usuario@servidor:/tmp/
+
+# 2. En el servidor: pasarlo al contenedor y respaldar la base antes de cargar
+docker compose cp /tmp/chichen-ocupacion.json web:/tmp/chichen-ocupacion.json
+docker compose exec db-backup sh /backup-db.sh
+
+# 3. Simular (no guarda nada) y revisar el reporte
+docker compose exec web npm run db:import:ocupacion -- /tmp/chichen-ocupacion.json
+
+# 4. Aplicar
+docker compose exec web npm run db:import:ocupacion -- /tmp/chichen-ocupacion.json --apply
+
+# 5. Borrar el archivo del contenedor y del servidor
+docker compose exec -u root web rm /tmp/chichen-ocupacion.json
+rm /tmp/chichen-ocupacion.json
+```
+
+Correrlo dos veces no duplica datos. Los contratos vencidos quedan como terminados
+y se renuevan desde la ficha del inquilino (botón **Renovar**).
+
 ---
 
 ## 6. Monitoreo y Mantenimiento

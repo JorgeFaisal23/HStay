@@ -372,8 +372,8 @@ export default async function UnitPage({
                     <p className="text-muted-foreground text-xs">Inquilino</p>
                     <p className="font-medium">{lease.tenant.name}</p>
                     <p className="text-muted-foreground text-xs">
-                      {lease.tenant.email}
-                      {lease.tenant.phone ? ` · ${lease.tenant.phone}` : ""}
+                      {[lease.tenant.email, lease.tenant.phone].filter(Boolean).join(" · ") ||
+                        "Sin datos de contacto"}
                     </p>
                   </div>
                   <ButtonLink

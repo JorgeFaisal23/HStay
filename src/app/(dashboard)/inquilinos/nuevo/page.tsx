@@ -14,9 +14,9 @@ export default async function NewTenantPage({
 }: {
   searchParams: Promise<{ unidad?: string }>;
 }) {
-  await requireUser(["OWNER", "ADMIN"]);
+  const session = await requireUser(["OWNER", "ADMIN"]);
   const { unidad } = await searchParams;
-  const units = await getAssignableUnits();
+  const units = await getAssignableUnits(session.organizationId);
 
   return (
     <>

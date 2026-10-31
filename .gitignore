@@ -25,6 +25,9 @@
 *.pem
 *.key
 
+# datos personales de inquilinos de clientes (nombres, teléfonos)
+docs/clientes/*/privado/
+
 # private server connection guides
 docs/despliegue/como-conectar-y-actualizar.md
 
