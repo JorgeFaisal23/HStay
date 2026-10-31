@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { computeChargeStatus, remainingOf } from "@/lib/payments";
+import { chargeDueDate, computeChargeStatus, remainingOf } from "@/lib/payments";
+
+describe("chargeDueDate (día de pago 1–31)", () => {
+  const ymd = (d: Date) => [d.getFullYear(), d.getMonth() + 1, d.getDate()];
+
+  it("respeta el día pactado cuando el mes lo tiene", () => {
+    expect(ymd(chargeDueDate("2026-10", 31))).toEqual([2026, 10, 31]);
+    expect(ymd(chargeDueDate("2026-10", 18))).toEqual([2026, 10, 18]);
+  });
+
+  it("en meses cortos cobra el último día", () => {
+    expect(ymd(chargeDueDate("2026-11", 31))).toEqual([2026, 11, 30]);
+    expect(ymd(chargeDueDate("2027-02", 30))).toEqual([2027, 2, 28]);
+    expect(ymd(chargeDueDate("2028-02", 30))).toEqual([2028, 2, 29]);
+  });
+
+  it("vence a mediodía", () => {
+    expect(chargeDueDate("2026-10", 5).getHours()).toBe(12);
+  });
+});
 
 const now = new Date(2026, 9, 15, 10); // 15 oct 2026
 const yesterday = new Date(2026, 9, 14, 12);

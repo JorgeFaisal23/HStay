@@ -26,7 +26,8 @@ export const leaseTermsSchema = z
     endDate: dateInput("Indica el vencimiento del contrato."),
     rentAmount: z.coerce.number().min(0, "La renta no puede ser negativa.").max(99_999_999),
     depositAmount: z.coerce.number().min(0).max(99_999_999).optional(),
-    paymentDay: z.coerce.number().int().min(1).max(28, "El día de pago va del 1 al 28."),
+    // 29, 30 y 31 valen: en meses más cortos se cobra el último día (chargeDueDate).
+    paymentDay: z.coerce.number().int().min(1, "El día de pago va del 1 al 31.").max(31, "El día de pago va del 1 al 31."),
   })
   .refine((t) => parseDateInput(t.endDate) > parseDateInput(t.startDate), {
     message: "El vencimiento debe ser posterior al inicio del contrato.",

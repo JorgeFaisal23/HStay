@@ -54,7 +54,7 @@ RUN npm init -y >/dev/null \
      prisma@${PRISMA_VERSION} dotenv@17 pg@8 bcryptjs@3
 COPY prisma/schema.prisma prisma/env.ts ./prisma/
 COPY prisma/migrations ./prisma/migrations
-COPY prisma7.config.ts scripts/create-superadmin.mjs ./
+COPY prisma7.config.ts scripts/create-superadmin.mjs scripts/import-occupancy.mjs ./
 
 # ------------------------------------------------------------------ runner
 FROM node:${NODE_VERSION}-bookworm-slim AS runner

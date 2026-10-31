@@ -75,7 +75,8 @@ export default async function OwnersPage() {
                     ) : null}
                     {owner.active ? null : <StatusBadge tone="neutral">Desactivado</StatusBadge>}
                     <OwnerRowActions
-                      owner={{ id: owner.id, name: owner.name, email: owner.email, active: owner.active }}
+                      // Un propietario siempre tiene correo (CHECK en la base).
+                      owner={{ id: owner.id, name: owner.name, email: owner.email ?? "", active: owner.active }}
                     />
                   </div>
                 </li>

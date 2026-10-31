@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { CalendarRange, LogIn, LogOut } from "lucide-react";
+import Link from "next/link";
+import { CalendarRange, List, LogIn, LogOut } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ButtonLink } from "@/components/shared/button-link";
 import {
   Card,
   CardContent,
@@ -31,15 +33,16 @@ const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mes?: string; edificio?: string }>;
+  searchParams: Promise<{ mes?: string; edificio?: string; q?: string }>;
 }) {
   const { session, db } = await requireOrgUser(["OWNER", "ADMIN", "VIEWER"]);
-  const { mes, edificio } = await searchParams;
+  const { mes, edificio, q } = await searchParams;
+  const search = q?.trim().slice(0, 100) || undefined;
 
   const period = mes && PERIOD_PATTERN.test(mes) ? mes : periodKey(new Date());
   const editable = canEdit(session.role);
   const [data, bookableUnits] = await Promise.all([
-    getCalendarData(db, period, edificio || undefined),
+    getCalendarData(db, period, edificio || undefined, search),
     editable ? getBookableUnits(db) : Promise.resolve([]),
   ]);
 
@@ -49,20 +52,28 @@ export default async function CalendarPage({
         title="Calendario"
         description="Arrendamientos de largo plazo y reservas de corta estancia sobre el mismo eje de tiempo."
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Suspense fallback={<Skeleton className="h-9 w-72" />}>
-              <CalendarToolbar
-                period={period}
-                buildings={data.buildings}
-                buildingId={edificio}
-              />
-            </Suspense>
-            {editable && bookableUnits.length > 0 ? (
-              <NewBookingDialog units={bookableUnits} variant="default" />
-            ) : null}
-          </div>
+          editable ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <ButtonLink href="/reservas" variant="outline">
+                <List className="size-4" aria-hidden />
+                Lista de reservas
+              </ButtonLink>
+              {bookableUnits.length > 0 ? (
+                <NewBookingDialog units={bookableUnits} variant="default" />
+              ) : null}
+            </div>
+          ) : null
         }
       />
+
+      <Suspense fallback={<Skeleton className="h-9 w-full max-w-3xl" />}>
+        <CalendarToolbar
+          period={period}
+          buildings={data.buildings}
+          buildingId={edificio}
+          search={search}
+        />
+      </Suspense>
 
       <Tabs defaultValue="ocupacion">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -78,19 +89,36 @@ export default async function CalendarPage({
           <Card>
             <CardHeader>
               <CardTitle>Ocupación por unidad</CardTitle>
-              <CardDescription>
-                {data.counts.units}{" "}
-                {data.counts.units === 1 ? "unidad" : "unidades"} ·{" "}
-                {data.counts.leases} contratos vigentes · {data.counts.bookings}{" "}
-                reservas en el mes.
+              <CardDescription className="tabular-nums">
+                {search
+                  ? `${data.counts.shown} de ${data.counts.units} unidades coinciden con “${search}”`
+                  : `${data.counts.units} ${data.counts.units === 1 ? "unidad" : "unidades"}`}{" "}
+                · {data.counts.leases} {data.counts.leases === 1 ? "contrato vigente" : "contratos vigentes"} ·{" "}
+                {data.counts.bookings} {data.counts.bookings === 1 ? "reserva" : "reservas"} en el mes.
+                {editable ? " Haz clic en una barra para abrirla." : ""}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {data.rows.length === 0 ? (
                 <EmptyState
                   icon={CalendarRange}
-                  title="No hay unidades que mostrar"
-                  description="Registra propiedades y unidades para ver aquí su ocupación."
+                  title={search ? "Nadie coincide este mes" : "No hay unidades que mostrar"}
+                  description={
+                    search
+                      ? "Ninguna persona ni unidad con ese nombre ocupa este mes. Para buscar en cualquier fecha, usa la lista de reservas."
+                      : "Registra propiedades y unidades para ver aquí su ocupación."
+                  }
+                  actions={
+                    search && editable ? (
+                      <ButtonLink
+                        href={`/reservas?q=${encodeURIComponent(search)}&estado=ALL&desde=2000-01-01`}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Buscar en todas las fechas
+                      </ButtonLink>
+                    ) : undefined
+                  }
                 />
               ) : (
                 <Timeline
@@ -98,6 +126,7 @@ export default async function CalendarPage({
                   year={data.year}
                   month={data.month}
                   totalDays={data.totalDays}
+                  linkable={editable}
                 />
               )}
             </CardContent>
@@ -119,6 +148,7 @@ export default async function CalendarPage({
                 month={data.month}
                 totalDays={data.totalDays}
                 events={data.events}
+                linkable={editable}
               />
             </CardContent>
           </Card>
@@ -133,6 +163,7 @@ function MonthGrid({
   month,
   totalDays,
   events,
+  linkable,
 }: {
   year: number;
   month: number;
@@ -143,7 +174,9 @@ function MonthGrid({
     date: Date;
     label: string;
     unitCode: string;
+    href: string;
   }[];
+  linkable: boolean;
 }) {
   // La semana empieza en lunes: getDay() devuelve 0 para domingo.
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
@@ -219,9 +252,15 @@ function MonthGrid({
                       ) : (
                         <LogOut className="size-2.5 shrink-0" aria-hidden />
                       )}
-                      <span className="truncate">
-                        {event.unitCode} · {event.label.split(" ")[0]}
-                      </span>
+                      {linkable ? (
+                        <Link href={event.href} className="truncate hover:underline">
+                          {event.unitCode} · {event.label.split(" ")[0]}
+                        </Link>
+                      ) : (
+                        <span className="truncate">
+                          {event.unitCode} · {event.label.split(" ")[0]}
+                        </span>
+                      )}
                     </li>
                   ))}
                   {dayEvents.length > 3 ? (

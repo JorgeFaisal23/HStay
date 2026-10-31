@@ -99,7 +99,7 @@ export async function getOrganizationDetail(id: string) {
     staff: users.map(({ currentSessionId, ...user }) => ({
       ...user,
       hasSession: currentSessionId !== null,
-      lockedUntil: locks.get(user.email) ?? null,
+      lockedUntil: (user.email && locks.get(user.email)) || null,
     })),
     /** Cuentas activas por tipo: cada una ocupa un usuario contratado. */
     activeUsers: {
@@ -122,9 +122,10 @@ export type OrganizationDetail = NonNullable<Awaited<ReturnType<typeof getOrgani
  * Bloqueo vigente por intentos fallidos de cada correo (acceso u "olvidé mi
  * contraseña"): fecha hasta la que dura, por correo.
  */
-async function lockStatus(emails: string[]) {
+async function lockStatus(emails: (string | null)[]) {
   const keyToEmail = new Map<string, string>();
   for (const email of emails) {
+    if (!email) continue; // inquilino sin correo: no tiene bloqueos
     keyToEmail.set(throttleKey("email", email), email);
     keyToEmail.set(throttleKey("reset", email), email);
   }
@@ -187,7 +188,7 @@ export async function searchUsers(filters: { q?: string; role?: SupportRole; org
     ...user,
     organization: organization!,
     hasSession: currentSessionId !== null,
-    lockedUntil: locks.get(user.email) ?? null,
+    lockedUntil: (user.email && locks.get(user.email)) || null,
   }));
 }
 

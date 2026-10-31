@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useFormAction } from "@/hooks/use-form-action";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, CalendarX, Ban } from "lucide-react";
+import { CalendarPlus, CalendarX, Ban, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,13 +17,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Field, FormError } from "@/components/shared/form-field";
-import { cancelLease, endLease, renewLease } from "@/server/actions/leases";
+import { cancelLease, endLease, renewLease, updateLease } from "@/server/actions/leases";
 import { localDateInput } from "./lease-terms-fields";
 
 type LeaseInfo = {
   id: string;
+  startDate: Date;
   endDate: Date;
   rentAmount: number;
+  depositAmount: number | null;
+  paymentDay: number;
   tenantName: string;
 };
 
@@ -48,33 +52,26 @@ function LeaseDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string>();
-  const [pending, startTransition] = useTransition();
+  // onSubmit en vez de action: si hay un error, lo capturado no se borra.
+  const { onSubmit, pending, error, clearError } = useFormAction(action, {
+    onSuccess: () => {
+      setOpen(false);
+      toast.success(success);
+      router.refresh();
+    },
+  });
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setError(undefined);
+        if (!next) clearError();
       }}
     >
       <DialogTrigger render={trigger} />
       <DialogContent className="sm:max-w-md">
-        <form
-          action={(formData) =>
-            startTransition(async () => {
-              const result = await action(formData);
-              if (result.error) {
-                setError(result.error);
-                return;
-              }
-              setOpen(false);
-              toast.success(success);
-              router.refresh();
-            })
-          }
-        >
+        <form onSubmit={onSubmit}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
@@ -97,12 +94,81 @@ function LeaseDialog({
   );
 }
 
-/** Renovar, terminar o cancelar un contrato vigente. */
+/** Corregir, renovar, terminar o cancelar un contrato vigente. */
 export function LeaseActions({ lease }: { lease: LeaseInfo }) {
   const currentEnd = localDateInput(0, lease.endDate);
+  // Un día antes del vencimiento: el inicio tiene que quedar antes.
+  const lastStart = localDateInput(0, new Date(lease.endDate.getTime() - 86_400_000));
 
   return (
     <div className="flex flex-wrap gap-2">
+      <LeaseDialog
+        trigger={
+          <Button variant="outline" size="sm">
+            <Pencil className="size-4" aria-hidden />
+            Editar
+          </Button>
+        }
+        title="Editar contrato"
+        description="Corrige datos que se capturaron mal. Los cargos ya generados no cambian; los siguientes usan los datos nuevos. El vencimiento se cambia con Renovar o Terminar."
+        submitLabel="Guardar cambios"
+        success="Contrato actualizado."
+        action={(formData) => updateLease(lease.id, formData)}
+      >
+        <Field label="Inicio del contrato" htmlFor="edit-start" required>
+          <Input
+            id="edit-start"
+            name="startDate"
+            type="date"
+            required
+            max={lastStart}
+            defaultValue={localDateInput(0, lease.startDate)}
+          />
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Renta mensual" htmlFor="edit-rent" required>
+            <Input
+              id="edit-rent"
+              name="rentAmount"
+              type="number"
+              min={0}
+              step="0.01"
+              required
+              defaultValue={lease.rentAmount}
+              className="text-right tabular-nums"
+            />
+          </Field>
+          <Field label="Depósito" htmlFor="edit-deposit">
+            <Input
+              id="edit-deposit"
+              name="depositAmount"
+              type="number"
+              min={0}
+              step="0.01"
+              defaultValue={lease.depositAmount ?? undefined}
+              className="text-right tabular-nums"
+            />
+          </Field>
+        </div>
+        <Field
+          label="Día de pago"
+          htmlFor="edit-payday"
+          required
+          hint="Del 1 al 31. En meses más cortos, el último día."
+        >
+          <Input
+            id="edit-payday"
+            name="paymentDay"
+            type="number"
+            min={1}
+            max={31}
+            required
+            defaultValue={lease.paymentDay}
+            className="text-right tabular-nums"
+          />
+        </Field>
+      </LeaseDialog>
+
       <LeaseDialog
         trigger={
           <Button variant="outline" size="sm">

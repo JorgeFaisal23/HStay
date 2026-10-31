@@ -51,13 +51,13 @@ export function LeaseTermsFields({ baseRent }: { baseRent?: number }) {
             className="text-right tabular-nums"
           />
         </Field>
-        <Field label="Día de pago" htmlFor="paymentDay" hint="Del 1 al 28.">
+        <Field label="Día de pago" htmlFor="paymentDay" hint="Del 1 al 31. En meses más cortos, el último día.">
           <Input
             id="paymentDay"
             name="paymentDay"
             type="number"
             min={1}
-            max={28}
+            max={31}
             defaultValue={1}
             className="text-right tabular-nums"
           />

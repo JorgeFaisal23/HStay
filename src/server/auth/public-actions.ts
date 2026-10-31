@@ -13,7 +13,7 @@ import { linkEmail } from "@/lib/mail-templates";
 import { APP } from "@/lib/app";
 import { canEmailLinks, linkBase } from "./links";
 import { consumeAuthToken, createAuthToken, TOKEN_TTL_LABEL } from "./tokens";
-import { SESSION_USER_SELECT, startSession } from "./sign-in";
+import { SESSION_USER_SELECT, loginEmail, startSession } from "./sign-in";
 import { clearFailures, LIMITS, lockedUntil, registerFailure, throttleKey } from "./throttle";
 
 /**
@@ -84,7 +84,7 @@ export async function requestPasswordReset(
 
     const raw = await createAuthToken(user.id, "RESET");
     await sendMail({
-      to: user.email,
+      to: loginEmail(user),
       ...linkEmail({
         kind: "RESET",
         recipientName: user.name,
@@ -142,7 +142,7 @@ export async function completePasswordLink(
     },
     select: SESSION_USER_SELECT,
   });
-  await clearFailures(throttleKey("email", user.email));
+  await clearFailures(throttleKey("email", loginEmail(user)));
 
   if (!user.active || (user.organization && user.organization.status !== "ACTIVE")) {
     redirect(loginPathFor(user.organization?.slug));

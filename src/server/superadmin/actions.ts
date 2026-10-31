@@ -309,7 +309,7 @@ function logSupport(target: SupportTarget, superadminId: string, action: string)
     organizationId: target.organizationId,
     userId: superadminId,
     action: `Plataforma: ${action}`,
-    detail: `Soporte de plataforma · ${target.email} · ${target.role}`,
+    detail: `Soporte de plataforma · ${target.email ?? `${target.name} (sin correo)`} · ${target.role}`,
     entity: "User",
     entityId: target.id,
   });
@@ -326,6 +326,9 @@ export async function supportResetAccess(
   const target = await findSupportTarget(userId);
   if (!target) return NOT_FOUND;
   if (!target.active) return { error: "Reactiva la cuenta antes de darle acceso." };
+  if (!target.email) {
+    return { error: "Esta cuenta no tiene correo. La arrendadora debe agregarlo antes de darle acceso." };
+  }
 
   const delivery = await deliverAccess(target.id, "RESET");
   await logSupport(target, session.sub, "restablecimiento de acceso");
@@ -395,6 +398,8 @@ export async function supportUnlockLogin(userId: string): Promise<ActionResult> 
   const session = await requireSuperadminAction();
   const target = await findSupportTarget(userId);
   if (!target) return NOT_FOUND;
+  // Los bloqueos se llevan por correo: una cuenta sin correo no puede tenerlos.
+  if (!target.email) return { ok: true };
 
   await Promise.all([
     clearFailures(throttleKey("email", target.email)),

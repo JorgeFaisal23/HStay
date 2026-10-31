@@ -33,7 +33,8 @@ import type { Role } from "@/generated/prisma/enums";
 export type SupportAccount = {
   id: string;
   name: string;
-  email: string;
+  /** Nulo solo en inquilinos sin acceso al portal. */
+  email: string | null;
   role: Role;
   active: boolean;
   hasSession: boolean;
@@ -69,7 +70,7 @@ export function SupportActions({ account }: { account: SupportAccount }) {
 
   return (
     <div className="flex items-center gap-1">
-      {account.active ? (
+      {account.active && account.email ? (
         <ResetAccessDialog email={account.email} action={() => supportResetAccess(account.id)} />
       ) : null}
       <DropdownMenu>

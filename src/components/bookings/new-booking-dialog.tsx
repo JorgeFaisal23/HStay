@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FormError, NativeSelect } from "@/components/shared/form-field";
 import { localDateInput } from "@/components/leases/lease-terms-fields";
-import { createBooking } from "@/server/actions/bookings";
+import { useFormAction } from "@/hooks/use-form-action";
+import { createBooking, updateBooking } from "@/server/actions/bookings";
 import { money } from "@/lib/format";
 import { quoteLabel, quoteStay, type StayRates } from "@/lib/rates";
 
@@ -27,6 +28,22 @@ export type BookableUnit = {
   label: string;
   /** Tarifas de estancia, para sugerir el total (ver src/lib/rates.ts). */
   rates: StayRates;
+};
+
+/** Datos de una reserva existente para el diálogo de edición. */
+export type EditableBooking = {
+  id: string;
+  unitId: string;
+  source: "MANUAL" | "DIRECT";
+  guestName: string;
+  guestEmail: string | null;
+  guestPhone: string | null;
+  /** AAAA-MM-DD */
+  checkIn: string;
+  checkOut: string;
+  guests: number;
+  totalAmount: number;
+  notes: string | null;
 };
 
 function nightsBetween(checkIn: string, checkOut: string) {
@@ -49,30 +66,106 @@ export function NewBookingDialog({
   unitId?: string;
   variant?: "default" | "outline";
 }) {
+  return (
+    <BookingDialog
+      units={units}
+      fixedUnitId={unitId}
+      trigger={
+        <Button variant={variant} size={variant === "outline" ? "sm" : "default"}>
+          <CalendarPlus className="size-4" aria-hidden />
+          Nueva reserva
+        </Button>
+      }
+    />
+  );
+}
+
+/** Corrige una reserva: huésped, fechas, unidad, total o notas. */
+export function EditBookingDialog({
+  units,
+  booking,
+  size = "sm",
+}: {
+  units: BookableUnit[];
+  booking: EditableBooking;
+  size?: "sm" | "default";
+}) {
+  return (
+    <BookingDialog
+      units={units}
+      booking={booking}
+      trigger={
+        <Button variant="outline" size={size}>
+          <Pencil className="size-4" aria-hidden />
+          Editar
+        </Button>
+      }
+    />
+  );
+}
+
+function BookingDialog({
+  units,
+  fixedUnitId,
+  booking,
+  trigger,
+}: {
+  units: BookableUnit[];
+  fixedUnitId?: string;
+  booking?: EditableBooking;
+  trigger: React.ReactElement;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string>();
-  const [pending, startTransition] = useTransition();
+  const editing = Boolean(booking);
 
-  const [selected, setSelected] = useState(unitId ?? "");
-  const [checkIn, setCheckIn] = useState(() => localDateInput());
-  const [checkOut, setCheckOut] = useState(() => {
+  const initialCheckIn = () => booking?.checkIn ?? localDateInput();
+  const initialCheckOut = () => {
+    if (booking) return booking.checkOut;
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     return localDateInput(0, tomorrow);
-  });
-  // El total se sugiere con noches × tarifa hasta que alguien lo escribe.
-  const [total, setTotal] = useState<string | null>(null);
+  };
+
+  const [selected, setSelected] = useState(booking?.unitId ?? fixedUnitId ?? "");
+  const [checkIn, setCheckIn] = useState(initialCheckIn);
+  const [checkOut, setCheckOut] = useState(initialCheckOut);
+  // El total se sugiere con noches × tarifa hasta que alguien lo escribe. Al
+  // editar se parte del total guardado.
+  const [total, setTotal] = useState<string | null>(
+    booking ? String(booking.totalAmount) : null,
+  );
 
   const unit = units.find((u) => u.id === selected);
   const nights = nightsBetween(checkIn, checkOut);
   const quote = unit ? quoteStay(nights, unit.rates) : null;
   const suggested = quote ? String(quote.total) : "";
 
+  // onSubmit en vez de action: si hay un error, lo capturado no se borra.
+  const { onSubmit, pending, error, clearError } = useFormAction(
+    (formData) => (booking ? updateBooking(booking.id, formData) : createBooking({}, formData)),
+    {
+      onSuccess: () => {
+        setOpen(false);
+        if (!editing) reset();
+        toast.success(editing ? "Reserva actualizada." : "Reserva registrada.");
+        router.refresh();
+      },
+    },
+  );
+
+  // Al cerrar sin guardar, la próxima vez abre con los datos originales.
   function reset() {
-    setError(undefined);
-    setTotal(null);
+    clearError();
+    setSelected(booking?.unitId ?? fixedUnitId ?? "");
+    setCheckIn(initialCheckIn());
+    setCheckOut(initialCheckOut());
+    setTotal(booking ? String(booking.totalAmount) : null);
   }
+
+  // Las ids de los campos llevan el de la reserva: en una lista puede haber
+  // varios diálogos montados a la vez.
+  const id = (name: string) => `${booking?.id ?? "new"}-${name}`;
 
   return (
     <Dialog
@@ -82,46 +175,25 @@ export function NewBookingDialog({
         if (!next) reset();
       }}
     >
-      <DialogTrigger
-        render={
-          <Button variant={variant} size={variant === "outline" ? "sm" : "default"}>
-            <CalendarPlus className="size-4" aria-hidden />
-            Nueva reserva
-          </Button>
-        }
-      />
+      <DialogTrigger render={trigger} />
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
-        <form
-          action={(formData) =>
-            startTransition(async () => {
-              const result = await createBooking({}, formData);
-              if (result.error) {
-                setError(result.error);
-                return;
-              }
-              setOpen(false);
-              reset();
-              toast.success("Reserva registrada.");
-              router.refresh();
-            })
-          }
-        >
+        <form onSubmit={onSubmit}>
           <DialogHeader>
-            <DialogTitle>Nueva reserva</DialogTitle>
+            <DialogTitle>{editing ? "Editar reserva" : "Nueva reserva"}</DialogTitle>
             <DialogDescription>
-              Una estancia corta acordada directamente o que quieres apartar en
-              el calendario. Se rechaza si se cruza con otra reserva o con un
-              contrato.
+              {editing
+                ? "Corrige los datos de la estancia. Si cambias la salida, la limpieza pendiente se mueve a la nueva fecha."
+                : "Una estancia corta acordada directamente o que quieres apartar en el calendario. Se rechaza si se cruza con otra reserva o con un contrato."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {unitId ? (
-              <input type="hidden" name="unitId" value={unitId} />
+            {fixedUnitId && !editing ? (
+              <input type="hidden" name="unitId" value={fixedUnitId} />
             ) : (
-              <Field label="Unidad" htmlFor="booking-unit" required>
+              <Field label="Unidad" htmlFor={id("unit")} required>
                 <NativeSelect
-                  id="booking-unit"
+                  id={id("unit")}
                   name="unitId"
                   required
                   value={selected}
@@ -139,23 +211,41 @@ export function NewBookingDialog({
               </Field>
             )}
 
-            <Field label="Huésped" htmlFor="guestName" required>
-              <Input id="guestName" name="guestName" required placeholder="Nombre completo" />
+            <Field label="Huésped" htmlFor={id("guestName")} required>
+              <Input
+                id={id("guestName")}
+                name="guestName"
+                required
+                placeholder="Nombre completo"
+                defaultValue={booking?.guestName}
+              />
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Correo" htmlFor="guestEmail">
-                <Input id="guestEmail" name="guestEmail" type="email" placeholder="huesped@correo.com" />
+              <Field label="Correo" htmlFor={id("guestEmail")} hint="Opcional.">
+                <Input
+                  id={id("guestEmail")}
+                  name="guestEmail"
+                  type="email"
+                  placeholder="huesped@correo.com"
+                  defaultValue={booking?.guestEmail ?? ""}
+                />
               </Field>
-              <Field label="Teléfono" htmlFor="guestPhone">
-                <Input id="guestPhone" name="guestPhone" type="tel" placeholder="55 1234 5678" />
+              <Field label="Teléfono" htmlFor={id("guestPhone")} hint="Opcional.">
+                <Input
+                  id={id("guestPhone")}
+                  name="guestPhone"
+                  type="tel"
+                  placeholder="55 1234 5678"
+                  defaultValue={booking?.guestPhone ?? ""}
+                />
               </Field>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Llegada" htmlFor="checkIn" required>
+              <Field label="Llegada" htmlFor={id("checkIn")} required>
                 <Input
-                  id="checkIn"
+                  id={id("checkIn")}
                   name="checkIn"
                   type="date"
                   required
@@ -163,9 +253,9 @@ export function NewBookingDialog({
                   onChange={(e) => setCheckIn(e.target.value)}
                 />
               </Field>
-              <Field label="Salida" htmlFor="checkOut" required>
+              <Field label="Salida" htmlFor={id("checkOut")} required>
                 <Input
-                  id="checkOut"
+                  id={id("checkOut")}
                   name="checkOut"
                   type="date"
                   required
@@ -177,12 +267,21 @@ export function NewBookingDialog({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Huéspedes" htmlFor="guests" required>
-                <Input id="guests" name="guests" type="number" min={1} max={50} defaultValue={1} required className="tabular-nums" />
+              <Field label="Huéspedes" htmlFor={id("guests")} required>
+                <Input
+                  id={id("guests")}
+                  name="guests"
+                  type="number"
+                  min={1}
+                  max={50}
+                  defaultValue={booking?.guests ?? 1}
+                  required
+                  className="tabular-nums"
+                />
               </Field>
               <Field
                 label="Total de la estancia"
-                htmlFor="totalAmount"
+                htmlFor={id("totalAmount")}
                 required
                 hint={
                   nights === 0
@@ -193,7 +292,7 @@ export function NewBookingDialog({
                 }
               >
                 <Input
-                  id="totalAmount"
+                  id={id("totalAmount")}
                   name="totalAmount"
                   type="number"
                   min={0}
@@ -206,15 +305,21 @@ export function NewBookingDialog({
               </Field>
             </div>
 
-            <Field label="Origen" htmlFor="source">
-              <NativeSelect id="source" name="source" defaultValue="DIRECT">
+            <Field label="Origen" htmlFor={id("source")}>
+              <NativeSelect id={id("source")} name="source" defaultValue={booking?.source ?? "DIRECT"}>
                 <option value="DIRECT">Reserva directa</option>
                 <option value="MANUAL">Registro manual</option>
               </NativeSelect>
             </Field>
 
-            <Field label="Notas" htmlFor="booking-notes">
-              <Textarea id="booking-notes" name="notes" rows={2} maxLength={500} />
+            <Field label="Notas" htmlFor={id("notes")}>
+              <Textarea
+                id={id("notes")}
+                name="notes"
+                rows={2}
+                maxLength={500}
+                defaultValue={booking?.notes ?? ""}
+              />
             </Field>
 
             <FormError message={error} />
@@ -222,10 +327,10 @@ export function NewBookingDialog({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
+              Volver
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? "Guardando…" : "Registrar reserva"}
+              {pending ? "Guardando…" : editing ? "Guardar cambios" : "Registrar reserva"}
             </Button>
           </DialogFooter>
         </form>

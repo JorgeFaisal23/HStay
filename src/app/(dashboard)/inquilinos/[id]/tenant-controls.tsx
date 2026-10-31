@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useFormStatus } from "react-dom";
+import { useFormAction } from "@/hooks/use-form-action";
 import { Pencil, UserCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,15 +24,15 @@ import { resetTenantAccess, setTenantActive, updateTenant } from "@/server/actio
 type TenantInfo = {
   id: string;
   name: string;
-  email: string;
+  /** Sin correo no tiene acceso al portal. */
+  email: string | null;
   phone: string | null;
   documentId: string | null;
   notes: string | null;
   active: boolean;
 };
 
-function Save() {
-  const { pending } = useFormStatus();
+function Save({ pending }: { pending: boolean }) {
   return (
     <Button type="submit" disabled={pending}>
       {pending ? "Guardando…" : "Guardar"}
@@ -43,22 +43,26 @@ function Save() {
 function EditTenantDialog({ tenant }: { tenant: TenantInfo }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string>();
-
-  async function submit(formData: FormData) {
-    const result = await updateTenant({}, formData);
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
-    setError(undefined);
-    setOpen(false);
-    toast.success("Datos actualizados.");
-    router.refresh();
-  }
+  // onSubmit en vez de action: si hay un error, lo capturado no se borra.
+  const { onSubmit, pending, error, clearError } = useFormAction(
+    (formData) => updateTenant({}, formData),
+    {
+      onSuccess: () => {
+        setOpen(false);
+        toast.success("Datos actualizados.");
+        router.refresh();
+      },
+    },
+  );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) clearError();
+      }}
+    >
       <DialogTrigger
         render={
           <Button variant="outline" size="sm">
@@ -68,20 +72,22 @@ function EditTenantDialog({ tenant }: { tenant: TenantInfo }) {
         }
       />
       <DialogContent className="sm:max-w-lg">
-        <form action={submit}>
+        <form onSubmit={onSubmit}>
           <input type="hidden" name="tenantId" value={tenant.id} />
           <DialogHeader>
             <DialogTitle>Editar inquilino</DialogTitle>
             <DialogDescription>
-              Si cambias el correo, a partir de ahora entrará al portal con el nuevo.
+              {tenant.email
+                ? "Si cambias el correo, a partir de ahora entrará al portal con el nuevo."
+                : "Agrega su correo y después usa “Acceso al portal” para que pueda entrar."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Field label="Nombre completo" htmlFor="t-name" required>
               <Input id="t-name" name="name" defaultValue={tenant.name} required />
             </Field>
-            <Field label="Correo" htmlFor="t-email" required>
-              <Input id="t-email" name="email" type="email" defaultValue={tenant.email} required />
+            <Field label="Correo" htmlFor="t-email" hint="Sin correo no tiene acceso al portal.">
+              <Input id="t-email" name="email" type="email" defaultValue={tenant.email ?? ""} />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Teléfono" htmlFor="t-phone">
@@ -100,7 +106,7 @@ function EditTenantDialog({ tenant }: { tenant: TenantInfo }) {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Save />
+            <Save pending={pending} />
           </DialogFooter>
         </form>
       </DialogContent>
@@ -127,7 +133,7 @@ export function TenantControls({ tenant }: { tenant: TenantInfo }) {
   return (
     <div className="flex flex-wrap gap-2">
       <EditTenantDialog tenant={tenant} />
-      {tenant.active ? (
+      {tenant.active && tenant.email ? (
         <ResetAccessDialog
           email={tenant.email}
           action={() => resetTenantAccess(tenant.id)}

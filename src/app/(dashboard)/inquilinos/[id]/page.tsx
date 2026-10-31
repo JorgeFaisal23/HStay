@@ -157,9 +157,13 @@ export default async function TenantDetailPage({
           <CardContent className="space-y-3 text-sm">
             <p className="flex items-center gap-2">
               <Mail className="text-muted-foreground size-4 shrink-0" aria-hidden />
-              <a href={`mailto:${tenant.email}`} className="truncate hover:underline">
-                {tenant.email}
-              </a>
+              {tenant.email ? (
+                <a href={`mailto:${tenant.email}`} className="truncate hover:underline">
+                  {tenant.email}
+                </a>
+              ) : (
+                <span className="text-muted-foreground">Sin correo · sin acceso al portal</span>
+              )}
             </p>
             {tenant.phone ? (
               <p className="flex items-center gap-2">
@@ -205,8 +209,11 @@ export default async function TenantDetailPage({
               <LeaseActions
                 lease={{
                   id: lease.id,
+                  startDate: lease.startDate,
                   endDate: lease.endDate,
                   rentAmount: lease.rentAmount,
+                  depositAmount: lease.depositAmount || null,
+                  paymentDay: lease.paymentDay,
                   tenantName: tenant.name,
                 }}
               />

@@ -344,6 +344,34 @@ Comandos del contenedor ([`docker-entrypoint.sh`](docker-entrypoint.sh)):
 | `migrate` | Solo aplica migraciones |
 | `baseline` | Marca una base creada antes de las migraciones como al día con `0_init` (una sola vez) |
 | `create-superadmin correo "Nombre"` | Crea un superadministrador con contraseña temporal |
+| `import-occupancy archivo.json --org <slug> [--apply]` | Importa inquilinos, contratos y número de luz sobre unidades que ya existen. Sin `--apply` solo simula |
+
+### Importar ocupación de una arrendadora
+
+Los archivos de ocupación traen datos personales (nombres, teléfonos): viven en
+`docs/clientes/<cliente>/privado/`, que git ignora, y se suben al servidor a mano.
+
+```bash
+# Desde tu computadora
+scp docs/clientes/carcar/privado/chichen-ocupacion.json usuario@servidor:/tmp/
+
+# En el servidor: simular, revisar el reporte y después aplicar
+docker compose --env-file .env.production run --rm \
+  -v /tmp/chichen-ocupacion.json:/data/ocupacion.json:ro \
+  app import-occupancy /data/ocupacion.json --org carcar
+docker compose --env-file .env.production run --rm \
+  -v /tmp/chichen-ocupacion.json:/data/ocupacion.json:ro \
+  app import-occupancy /data/ocupacion.json --org carcar --apply
+
+rm /tmp/chichen-ocupacion.json
+```
+
+- Contratos vencidos quedan terminados ("Vencimiento"); para volver a rentarle a
+  ese inquilino se usa **Asignar unidad** en su ficha.
+- Cada inquilino nuevo ocupa un usuario contratado. Si no caben, no se importa
+  nada y el reporte dice a cuántos hay que ampliar el cupo (lo hace el
+  superadministrador en la ficha de la arrendadora).
+- Correrlo dos veces no duplica inquilinos, contratos ni servicios.
 
 ## Demo en Render
 

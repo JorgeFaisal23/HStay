@@ -102,7 +102,7 @@ export default async function SupportUsersPage({ searchParams }: Props) {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{user.name}</p>
                     <p className="text-muted-foreground truncate text-xs">
-                      {user.email} ·{" "}
+                      {user.email ?? "Sin correo"} ·{" "}
                       <Link
                         href={`/superadmin/organizaciones/${user.organization.id}`}
                         className="hover:text-foreground underline-offset-4 hover:underline"

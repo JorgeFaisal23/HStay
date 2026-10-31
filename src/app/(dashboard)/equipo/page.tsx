@@ -112,7 +112,8 @@ export default async function TeamPage() {
                       member={{
                         id: member.id,
                         name: member.name,
-                        email: member.email,
+                        // El equipo siempre tiene correo (CHECK en la base).
+                        email: member.email ?? "",
                         role: member.role as StaffRole,
                         active: member.active,
                       }}

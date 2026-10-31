@@ -12,14 +12,27 @@ import type { Role } from "@/lib/auth/jwt";
  * Genera un identificador de sesión y lo guarda en la base: cualquier sesión
  * anterior del usuario queda invalidada (una sesión activa por persona).
  */
+/**
+ * Correo de una cuenta que inicia sesión o recibe enlaces. Solo un inquilino
+ * sin acceso al portal puede no tenerlo, y a ese nunca se llega por aquí: se
+ * entra con el correo. Si pasara, es un error de programación, no del usuario.
+ */
+export function loginEmail(user: { id: string; email: string | null }): string {
+  if (!user.email) {
+    throw new Error(`La cuenta ${user.id} no tiene correo: no puede iniciar sesión.`);
+  }
+  return user.email;
+}
+
 export async function startSession(user: {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
   role: Role;
   organizationId: string | null;
   organization: { slug: string } | null;
 }) {
+  const email = loginEmail(user);
   const sessionId = crypto.randomUUID();
   await prisma.user.update({
     where: { id: user.id },
@@ -28,7 +41,7 @@ export async function startSession(user: {
 
   await createSession({
     sub: user.id,
-    email: user.email,
+    email,
     name: user.name,
     role: user.role,
     sessionId,

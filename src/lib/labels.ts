@@ -1,5 +1,6 @@
 import type {
   BookingSource,
+  BookingStatus,
   ChargeStatus,
   ExpenseStatus,
   LeaseStatus,
@@ -215,3 +216,15 @@ export const BOOKING_SOURCE_CLASSES: Record<BookingSource, string> = {
 };
 
 export const LEASE_BAR_CLASS = "bg-event-lease text-event-foreground";
+
+export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
+  CONFIRMED: "Confirmada",
+  CANCELLED: "Cancelada",
+  COMPLETED: "Terminada",
+};
+
+export const BOOKING_STATUS_TONES: Record<BookingStatus, Tone> = {
+  CONFIRMED: "success",
+  CANCELLED: "neutral",
+  COMPLETED: "neutral",
+};

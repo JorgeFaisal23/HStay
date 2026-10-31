@@ -85,7 +85,7 @@ export default async function TenantsPage() {
                         <p className="text-muted-foreground flex flex-wrap items-center gap-x-3 text-xs">
                           <span className="inline-flex items-center gap-1">
                             <Mail className="size-3" aria-hidden />
-                            {tenant.email}
+                            {tenant.email ?? "Sin correo"}
                           </span>
                           {tenant.phone ? (
                             <span className="inline-flex items-center gap-1">

@@ -98,7 +98,9 @@ model User {
   id                 String        @id @default(cuid())
   organizationId     String?
   organization       Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  email              String        @unique
+  /// Nulo solo para inquilinos sin acceso al portal (lo impone un CHECK en
+  /// SQL). El índice único admite varios NULL.
+  email              String?       @unique
   passwordHash       String
   name               String
   phone              String?

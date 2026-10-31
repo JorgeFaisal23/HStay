@@ -36,6 +36,7 @@ import { SHOW_AIRBNB_INTEGRATION } from "@/lib/features";
 import {
   daysBetween,
   deadlineLabel,
+  inputDate,
   longDate,
   money,
   periodLabel,
@@ -54,7 +55,7 @@ import {
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { ServiceAccountCard } from "@/components/services/service-account-card";
 import { AddServiceDialog } from "@/components/services/add-service-dialog";
-import { NewBookingDialog } from "@/components/bookings/new-booking-dialog";
+import { EditBookingDialog, NewBookingDialog } from "@/components/bookings/new-booking-dialog";
 import { CancelBookingButton } from "@/components/bookings/cancel-booking-button";
 import { deleteUnit } from "@/server/actions/properties";
 import { EditUnitDialog } from "./edit-unit-dialog";
@@ -384,10 +385,28 @@ export default async function UnitPage({
                             </p>
                           </div>
                           {editable && booking.source !== "AIRBNB" ? (
-                            <CancelBookingButton
-                              bookingId={booking.id}
-                              guestName={booking.guestName}
-                            />
+                            <>
+                              <EditBookingDialog
+                                units={[{ id: unit.id, label: unit.code, rates: unit.rates }]}
+                                booking={{
+                                  id: booking.id,
+                                  unitId: unit.id,
+                                  source: booking.source === "DIRECT" ? "DIRECT" : "MANUAL",
+                                  guestName: booking.guestName,
+                                  guestEmail: booking.guestEmail,
+                                  guestPhone: booking.guestPhone,
+                                  checkIn: inputDate(booking.checkIn),
+                                  checkOut: inputDate(booking.checkOut),
+                                  guests: booking.guests,
+                                  totalAmount: booking.totalAmount,
+                                  notes: booking.notes,
+                                }}
+                              />
+                              <CancelBookingButton
+                                bookingId={booking.id}
+                                guestName={booking.guestName}
+                              />
+                            </>
                           ) : null}
                         </div>
                       </li>
@@ -416,8 +435,8 @@ export default async function UnitPage({
                     <p className="text-muted-foreground text-xs">Inquilino</p>
                     <p className="font-medium">{lease.tenant.name}</p>
                     <p className="text-muted-foreground text-xs">
-                      {lease.tenant.email}
-                      {lease.tenant.phone ? ` · ${lease.tenant.phone}` : ""}
+                      {[lease.tenant.email, lease.tenant.phone].filter(Boolean).join(" · ") ||
+                        "Sin datos de contacto"}
                     </p>
                   </div>
                   <ButtonLink

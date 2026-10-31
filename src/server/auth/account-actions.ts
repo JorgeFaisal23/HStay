@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUserAction } from "@/lib/auth/session";
 import { homePathFor } from "@/lib/permissions";
 import { passwordPairSchema } from "@/lib/password-policy";
-import { SESSION_USER_SELECT, startSession } from "./sign-in";
+import { SESSION_USER_SELECT, loginEmail, startSession } from "./sign-in";
 import { LIMITS, lockedUntil, minutesUntil, registerFailure, throttleKey } from "./throttle";
 
 export type PasswordFormState = { ok?: boolean; error?: string };
@@ -43,7 +43,7 @@ export async function changePassword(
   if (!user.mustChangePassword) {
     // Los intentos con la contraseña actual cuentan contra el mismo límite que
     // el login: con una sesión robada tampoco se puede adivinar.
-    const key = throttleKey("email", user.email);
+    const key = throttleKey("email", loginEmail(user));
     const blocked = await lockedUntil([key]);
     if (blocked) {
       return { error: `Demasiados intentos. Espera ${minutesUntil(blocked)} min.` };

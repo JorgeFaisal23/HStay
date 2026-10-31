@@ -28,7 +28,8 @@ import { userQuotaErrorFor } from "@/server/user-quota";
 
 const tenantSchema = z.object({
   name: z.string().trim().min(3, "Escribe el nombre completo."),
-  email: z.string().trim().toLowerCase().email("Escribe un correo válido."),
+  /** Opcional: sin correo se registra, ocupa un usuario, pero no entra al portal. */
+  email: z.string().trim().toLowerCase().email("Escribe un correo válido.").optional(),
   phone: z.string().trim().optional(),
   documentId: z.string().trim().optional(),
   notes: z.string().trim().optional(),
@@ -45,7 +46,7 @@ export async function createTenant(
 
   const parsed = tenantSchema.safeParse({
     name: formData.get("name"),
-    email: formData.get("email"),
+    email: formData.get("email") || undefined,
     phone: formData.get("phone") || undefined,
     documentId: formData.get("documentId") || undefined,
     notes: formData.get("notes") || undefined,
@@ -55,13 +56,17 @@ export async function createTenant(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Revisa los datos." };
   }
+  const email = parsed.data.email;
+  if (!email && parsed.data.password) {
+    return { error: "Para darle acceso al portal, escribe también su correo." };
+  }
 
-  // Cada inquilino con acceso ocupa un usuario contratado.
+  // Cada inquilino activo ocupa un usuario contratado, tenga o no correo.
   const overQuota = await userQuotaErrorFor(db);
   if (overQuota) return { error: overQuota };
 
   // El correo es único en toda la plataforma, no solo en esta arrendadora.
-  if (await isEmailInUse(parsed.data.email)) {
+  if (email && (await isEmailInUse(email))) {
     return { error: "Ese correo ya está registrado. Usa otro." };
   }
 
@@ -87,7 +92,8 @@ export async function createTenant(
   // arrendador le entrega (y que deberá cambiar al entrar) o, si hay correo
   // configurado, una invitación para que elija la suya. Nunca una contraseña
   // por defecto: una conocida por todos abriría cualquier cuenta nueva.
-  const invite = !parsed.data.password;
+  // Sin correo no hay ninguna de las dos: queda registrado sin acceso.
+  const invite = Boolean(email) && !parsed.data.password;
   if (invite && !(await canEmailLinks())) {
     return { error: "Escribe una contraseña temporal para que pueda entrar al portal." };
   }
@@ -116,13 +122,13 @@ export async function createTenant(
       data: {
         organizationId: orgId,
         name: parsed.data.name,
-        email: parsed.data.email,
+        email: email ?? null,
         phone: parsed.data.phone,
         documentId: parsed.data.documentId,
         notes: parsed.data.notes,
         role: "TENANT",
         passwordHash,
-        mustChangePassword: !invite,
+        mustChangePassword: Boolean(parsed.data.password),
       },
     });
 
@@ -166,7 +172,7 @@ export async function createTenant(
 async function findTenant(db: OrgDb, tenantId: string) {
   return db.user.findFirst({
     where: { id: tenantId, role: "TENANT" },
-    select: { id: true, name: true, active: true },
+    select: { id: true, name: true, email: true, active: true },
   });
 }
 
@@ -222,6 +228,7 @@ export async function resetTenantAccess(
   const tenant = await findTenant(db, tenantId);
   if (!tenant) return { error: "No se encontró al inquilino." };
   if (!tenant.active) return { error: "Reactiva al inquilino antes de darle acceso." };
+  if (!tenant.email) return { error: "Agrega su correo antes de darle acceso al portal." };
 
   const delivery = await deliverAccess(tenant.id, "RESET");
   await logAction(db, session.sub, "Restablecimiento de acceso", "User", tenant.id, tenant.name);
@@ -241,7 +248,7 @@ export async function updateTenant(
 
   const parsed = updateSchema.safeParse({
     name: formData.get("name"),
-    email: formData.get("email"),
+    email: formData.get("email") || undefined,
     phone: formData.get("phone") || undefined,
     documentId: formData.get("documentId") || undefined,
     notes: formData.get("notes") || undefined,
@@ -256,19 +263,23 @@ export async function updateTenant(
   // quedarse con su cuenta.
   const tenant = await db.user.findFirst({
     where: { id: tenantId, role: "TENANT" },
-    select: { id: true },
+    select: { id: true, email: true },
   });
   if (!tenant) return { error: "No se encontró al inquilino." };
 
-  if (await isEmailInUse(parsed.data.email, tenantId)) {
+  const email = parsed.data.email ?? null;
+  if (email && (await isEmailInUse(email, tenantId))) {
     return { error: "Ese correo ya está registrado. Usa otro." };
   }
+  // Quitarle el correo le quita el acceso: se cierra su sesión abierta.
+  const losesAccess = Boolean(tenant.email) && !email;
 
   await db.user.update({
     where: { id: tenantId },
     data: {
       name: parsed.data.name,
-      email: parsed.data.email,
+      email,
+      ...(losesAccess ? { currentSessionId: null } : {}),
       phone: parsed.data.phone ?? null,
       documentId: parsed.data.documentId ?? null,
       notes: parsed.data.notes ?? null,

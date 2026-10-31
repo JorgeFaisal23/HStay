@@ -30,11 +30,14 @@ export function Timeline({
   year,
   month,
   totalDays,
+  linkable = false,
 }: {
   rows: TimelineRow[];
   year: number;
   month: number;
   totalDays: number;
+  /** Quien puede editar abre la reserva o el inquilino al hacer clic en la barra. */
+  linkable?: boolean;
 }) {
   const days = Array.from({ length: totalDays }, (_, i) => i + 1);
   const today = new Date();
@@ -135,11 +138,14 @@ export function Timeline({
                       }}
                       className="px-px"
                     >
-                      <div
+                      <BarTag
+                        href={linkable ? bar.href : undefined}
                         title={`${bar.label} — ${bar.detail}`}
                         className={cn(
                           "flex h-6 items-center overflow-hidden rounded-sm px-1.5 text-2xs font-medium",
                           BAR_STYLES[bar.kind],
+                          linkable &&
+                            "transition-colors hover:brightness-110 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                           bar.continuesBefore && "rounded-l-none",
                           bar.continuesAfter && "rounded-r-none",
                         )}
@@ -149,7 +155,7 @@ export function Timeline({
                           {bar.label}
                           {bar.continuesAfter ? " ›" : ""}
                         </span>
-                      </div>
+                      </BarTag>
                     </div>
                   ))}
                 </div>
@@ -158,6 +164,29 @@ export function Timeline({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Barra como enlace si hay a dónde ir; si no, un bloque sin interacción. */
+function BarTag({
+  href,
+  title,
+  className,
+  children,
+}: {
+  href?: string;
+  title: string;
+  className: string;
+  children: React.ReactNode;
+}) {
+  return href ? (
+    <Link href={href} title={title} className={className}>
+      {children}
+    </Link>
+  ) : (
+    <div title={title} className={className}>
+      {children}
     </div>
   );
 }

@@ -189,7 +189,7 @@ export default async function OrganizationPage({ params }: Params) {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{member.name}</p>
                   <p className="text-muted-foreground truncate text-xs">
-                    {member.email} · alta el {shortDate(member.createdAt)}
+                    {member.email ?? "Sin correo"} · alta el {shortDate(member.createdAt)}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

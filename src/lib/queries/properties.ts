@@ -258,6 +258,9 @@ export async function getUnitDetail(db: OrgDb, unitId: string) {
     bookings: unit.bookings.map((b) => ({
       id: b.id,
       guestName: b.guestName,
+      guestEmail: b.guestEmail,
+      guestPhone: b.guestPhone,
+      notes: b.notes,
       source: b.source,
       checkIn: b.checkIn,
       checkOut: b.checkOut,

@@ -103,6 +103,70 @@ export async function createLease(_prev: ActionResult, formData: FormData): Prom
   redirect(`/inquilinos/${tenantId}`);
 }
 
+// ------------------------------------------------------------------ corregir
+
+const updateSchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Indica el inicio del contrato."),
+  rentAmount: z.coerce.number().min(0, "La renta no puede ser negativa.").max(99_999_999),
+  depositAmount: z.coerce.number().min(0, "El depósito no puede ser negativo.").max(99_999_999).optional(),
+  paymentDay: z.coerce
+    .number()
+    .int()
+    .min(1, "El día de pago va del 1 al 31.")
+    .max(31, "El día de pago va del 1 al 31."),
+});
+
+/**
+ * Corrige los datos de un contrato vigente que se capturaron mal (inicio,
+ * renta, depósito, día de pago). El vencimiento no se toca aquí: se mueve con
+ * Renovar o Terminar, que validan reservas y cargos. Los cargos ya generados
+ * no cambian; los siguientes usan los datos nuevos.
+ */
+export async function updateLease(leaseId: string, formData: FormData): Promise<ActionResult> {
+  const { session, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
+
+  const parsed = updateSchema.safeParse({
+    startDate: formData.get("startDate"),
+    rentAmount: formData.get("rentAmount"),
+    depositAmount: formData.get("depositAmount") || undefined,
+    paymentDay: formData.get("paymentDay"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Revisa los datos." };
+
+  const lease = await db.lease.findFirst({
+    where: { id: leaseId, status: "ACTIVE" },
+    select: { id: true, unitId: true, tenantId: true, endDate: true, tenant: { select: { name: true } } },
+  });
+  if (!lease) return { error: "No se encontró un contrato vigente." };
+
+  const startDate = parseDateInput(parsed.data.startDate);
+  if (Number.isNaN(startDate.getTime())) return { error: "Indica el inicio del contrato." };
+  if (startDate >= lease.endDate) {
+    return { error: "El inicio debe ser anterior al vencimiento del contrato." };
+  }
+
+  await db.lease.update({
+    where: { id: lease.id },
+    data: {
+      startDate,
+      rentAmount: parsed.data.rentAmount,
+      depositAmount: parsed.data.depositAmount ?? null,
+      paymentDay: parsed.data.paymentDay,
+    },
+  });
+
+  await logAction(
+    db,
+    session.sub,
+    "Corrección de contrato",
+    "Lease",
+    lease.id,
+    `${lease.tenant.name} · inicio ${parsed.data.startDate} · renta ${parsed.data.rentAmount} · día ${parsed.data.paymentDay}`,
+  );
+  refresh(lease.tenantId, lease.unitId);
+  return { ok: true };
+}
+
 // ------------------------------------------------------------------ terminar
 
 const endSchema = z.object({

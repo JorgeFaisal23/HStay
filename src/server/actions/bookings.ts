@@ -36,7 +36,14 @@ const bookingSchema = z
  */
 type Reader = Pick<OrgDb, "unit" | "booking" | "lease">;
 
-async function bookingConflictError(db: Reader, unitId: string, checkIn: Date, checkOut: Date) {
+async function bookingConflictError(
+  db: Reader,
+  unitId: string,
+  checkIn: Date,
+  checkOut: Date,
+  /** Al editar, la propia reserva no cuenta como cruce. */
+  excludeBookingId?: string,
+) {
   const unit = await db.unit.findUnique({ where: { id: unitId }, select: { status: true } });
   if (!unit) return "No se encontró la unidad.";
   if (unit.status === "MAINTENANCE") return "La unidad está en mantenimiento.";
@@ -44,7 +51,13 @@ async function bookingConflictError(db: Reader, unitId: string, checkIn: Date, c
   const overlaps = { lt: checkOut };
   const [booking, lease] = await Promise.all([
     db.booking.findFirst({
-      where: { unitId, status: "CONFIRMED", checkIn: overlaps, checkOut: { gt: checkIn } },
+      where: {
+        unitId,
+        status: "CONFIRMED",
+        checkIn: overlaps,
+        checkOut: { gt: checkIn },
+        ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
+      },
       orderBy: { checkIn: "asc" },
       select: { guestName: true, checkIn: true, checkOut: true },
     }),
@@ -68,13 +81,8 @@ async function bookingConflictError(db: Reader, unitId: string, checkIn: Date, c
   return null;
 }
 
-export async function createBooking(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  const { session, orgId, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
-
-  const parsed = bookingSchema.safeParse({
+function readBooking(formData: FormData) {
+  return bookingSchema.safeParse({
     unitId: formData.get("unitId"),
     guestName: formData.get("guestName"),
     guestEmail: formData.get("guestEmail") || undefined,
@@ -86,6 +94,23 @@ export async function createBooking(
     source: formData.get("source") || "MANUAL",
     notes: formData.get("notes") || undefined,
   });
+}
+
+function refreshBooking(...unitIds: string[]) {
+  revalidatePath("/calendario");
+  revalidatePath("/reservas", "layout");
+  for (const unitId of new Set(unitIds)) revalidatePath(`/unidades/${unitId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/hoy");
+}
+
+export async function createBooking(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { session, orgId, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
+
+  const parsed = readBooking(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Revisa los datos." };
   }
@@ -131,10 +156,88 @@ export async function createBooking(
     `${data.guestName}: ${data.checkIn} → ${data.checkOut}`,
   );
 
-  revalidatePath("/calendario");
-  revalidatePath(`/unidades/${data.unitId}`);
-  revalidatePath("/dashboard");
-  revalidatePath("/hoy");
+  refreshBooking(data.unitId);
+  return { ok: true };
+}
+
+/**
+ * Corrige una reserva capturada aquí: huésped, fechas, unidad, total o notas.
+ * Las de Airbnb se corrigen en Airbnb. Si cambian la salida o la unidad, la
+ * limpieza pendiente de esa salida se mueve con la reserva.
+ */
+export async function updateBooking(bookingId: string, formData: FormData): Promise<ActionResult> {
+  const { session, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
+
+  const parsed = readBooking(formData);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Revisa los datos." };
+  }
+  const data = parsed.data;
+  const checkIn = parseDateInput(data.checkIn);
+  const checkOut = parseDateInput(data.checkOut);
+
+  const current = await db.booking.findUnique({
+    where: { id: bookingId },
+    select: { status: true, source: true, unitId: true },
+  });
+  if (!current) return { error: "No se encontró la reserva." };
+  if (current.source === "AIRBNB") {
+    return { error: "Las reservas de Airbnb se corrigen desde Airbnb." };
+  }
+  if (current.status !== "CONFIRMED") {
+    return { error: "Esta reserva ya no está confirmada. Captura una nueva si el huésped vuelve." };
+  }
+
+  // Mismo candado que el alta. Si cambia de unidad, se toman las dos en el
+  // mismo orden siempre para que dos ediciones cruzadas no se bloqueen.
+  const units = [...new Set([current.unitId, data.unitId])].sort();
+  const result = await db.$transaction(async (tx) => {
+    for (const unitId of units) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${unitId}))`;
+    }
+    const conflict = await bookingConflictError(tx, data.unitId, checkIn, checkOut, bookingId);
+    if (conflict) return { error: conflict };
+
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: {
+        unitId: data.unitId,
+        source: data.source,
+        guestName: data.guestName,
+        guestEmail: data.guestEmail ?? null,
+        guestPhone: data.guestPhone ?? null,
+        checkIn,
+        checkOut,
+        guests: data.guests,
+        totalAmount: data.totalAmount,
+        notes: data.notes ?? null,
+      },
+    });
+    await tx.task.updateMany({
+      where: { bookingId, status: "OPEN" },
+      data: {
+        unitId: data.unitId,
+        dueDate: checkOut,
+        title: `Limpieza tras la salida de ${data.guestName}`,
+      },
+    });
+    return { ok: true as const };
+  });
+
+  if ("error" in result) return { error: result.error };
+
+  await logAction(
+    db,
+    session.sub,
+    "Edición de reserva",
+    "Booking",
+    bookingId,
+    `${data.guestName}: ${data.checkIn} → ${data.checkOut}`,
+  );
+
+  refreshBooking(current.unitId, data.unitId);
+  revalidatePath("/tareas");
+  revalidatePath("/operacion");
   return { ok: true };
 }
 
@@ -164,10 +267,7 @@ export async function cancelBooking(bookingId: string): Promise<ActionResult> {
   });
   await logAction(db, session.sub, "Cancelación de reserva", "Booking", bookingId, booking.guestName);
 
-  revalidatePath("/calendario");
-  revalidatePath(`/unidades/${booking.unitId}`);
-  revalidatePath("/dashboard");
-  revalidatePath("/hoy");
+  refreshBooking(booking.unitId);
   revalidatePath("/tareas");
   revalidatePath("/operacion");
   return { ok: true };

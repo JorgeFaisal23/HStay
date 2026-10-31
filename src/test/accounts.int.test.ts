@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { SESSION_COOKIE, signSession, verifySession } from "@/lib/auth/jwt";
-import { createOrgFixture, deleteOrgFixtures, type OrgFixture } from "@/test/fixtures";
+import { createOrgFixture, deleteOrgFixtures, withEmail, type OrgFixture } from "@/test/fixtures";
 
 /**
  * Cuentas con la sesión real (JWT firmado + validación en la base). Solo se
@@ -67,7 +67,7 @@ async function actAs(userId: string) {
     SESSION_COOKIE,
     await signSession({
       sub: user.id,
-      email: user.email,
+      email: withEmail(user).email,
       name: user.name,
       role: user.role,
       sessionId,
@@ -96,7 +96,7 @@ async function redirectOf(promise: Promise<unknown>) {
 beforeAll(async () => {
   a = await createOrgFixture("cuentas-a");
   b = await createOrgFixture("cuentas-b");
-  adminA = await prisma.user.create({
+  adminA = withEmail(await prisma.user.create({
     data: {
       organizationId: a.organizationId,
       email: `admin-${randomUUID().slice(0, 8)}@test.mx`,
@@ -105,7 +105,7 @@ beforeAll(async () => {
       passwordHash: await bcrypt.hash("clave-del-admin", 10),
     },
     select: { id: true, email: true },
-  });
+  }));
   await prisma.user.update({
     where: { id: a.owner.id },
     data: { passwordHash: await bcrypt.hash("clave-original", 10) },

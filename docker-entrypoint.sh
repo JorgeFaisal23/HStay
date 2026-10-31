@@ -8,6 +8,8 @@
 #                       (con `prisma db push`) como al día con 0_init. Una sola
 #                       vez, y solo en esa base.
 #   create-superadmin   crea un superadministrador: correo "Nombre".
+#   import-occupancy    importa inquilinos, contratos y luz de una arrendadora:
+#                       archivo.json --org <slug> [--apply]. Sin --apply solo simula.
 #
 # Ejemplo: docker compose run --rm app create-superadmin yo@ejemplo.com "Mi Nombre"
 
@@ -36,6 +38,9 @@ case "$command" in
     ;;
   create-superadmin)
     cd /migrator && exec node create-superadmin.mjs "$@"
+    ;;
+  import-occupancy)
+    cd /migrator && exec node import-occupancy.mjs "$@"
     ;;
   *)
     exec "$command" "$@"

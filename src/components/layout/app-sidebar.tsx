@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Banknote,
   Building2,
+  CalendarCheck,
   CalendarRange,
   FileSignature,
   KeyRound,
@@ -53,6 +54,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/dashboard", label: "Resumen", icon: LayoutDashboard },
   { href: "/edificios", label: "Propiedades", icon: Building2 },
   { href: "/calendario", label: "Calendario", icon: CalendarRange },
+  { href: "/reservas", label: "Reservas", icon: CalendarCheck },
   { href: "/tareas", label: "Tareas", icon: Wrench },
   { href: "/servicios", label: "Servicios", icon: Receipt },
   { href: "/pagos", label: "Cobros", icon: Banknote },

@@ -47,6 +47,13 @@ export async function deliverAccess(
     },
   });
 
+  // Quien llama ya comprobó que hay correo: sin él no hay cómo entrar al
+  // portal, ni con enlace ni con contraseña temporal.
+  if (!user.email) {
+    throw new Error("La cuenta no tiene correo: agrégalo antes de darle acceso.");
+  }
+  const email = user.email;
+
   const base = isMailConfigured() ? await linkBase() : null;
   if (base) {
     await prisma.user.update({
@@ -67,8 +74,8 @@ export async function deliverAccess(
       link: `${base}/${path}/${raw}`,
       expiresIn: TOKEN_TTL_LABEL[purpose],
     });
-    const { sent } = await sendMail({ to: user.email, ...message });
-    if (sent) return { method: "email", email: user.email };
+    const { sent } = await sendMail({ to: email, ...message });
+    if (sent) return { method: "email", email };
     // Si el correo no salió, se cae a la contraseña temporal para que nadie
     // se quede sin forma de entrar.
   }
@@ -82,5 +89,5 @@ export async function deliverAccess(
       currentSessionId: null,
     },
   });
-  return { method: "password", email: user.email, tempPassword };
+  return { method: "password", email, tempPassword };
 }

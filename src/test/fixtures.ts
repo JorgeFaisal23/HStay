@@ -2,6 +2,17 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 
 /**
+ * Usuario creado con correo, con el tipo ajustado a `email: string`. El correo
+ * es opcional en el esquema (inquilinos sin acceso al portal), pero las
+ * cuentas de prueba que inician sesión siempre lo tienen.
+ */
+export function withEmail<T extends { email: string | null }>(user: T): T & { email: string } {
+  const { email } = user;
+  if (!email) throw new Error("La cuenta de prueba no tiene correo.");
+  return { ...user, email };
+}
+
+/**
  * Una arrendadora con una fila de cada tipo, para probar el aislamiento: las
  * pruebas crean dos y atacan una desde la otra.
  */
@@ -103,8 +114,8 @@ export async function createOrgFixture(label: string) {
   return {
     org,
     organizationId,
-    owner,
-    tenant,
+    owner: withEmail(owner),
+    tenant: withEmail(tenant),
     building,
     unit,
     freeUnit,

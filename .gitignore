@@ -30,6 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# datos personales de inquilinos de clientes (nombres, teléfonos)
+docs/clientes/*/privado/
+
 # env files
 .env*
 !.env.example

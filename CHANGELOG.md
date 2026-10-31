@@ -9,6 +9,28 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 
 ## [Sin publicar]
 
+## [0.12.0] - 2026-10-30
+
+### Añadido
+- **Inquilinos sin correo**: se pueden dar de alta sin correo; quedan registrados sin acceso al portal y ocupan un usuario contratado igual que los demás. Al agregarles correo desde su ficha aparece "Acceso al portal" para invitarlos o darles contraseña temporal. El superadministrador los ve como "Sin correo" y su cupo se amplía como cualquier otro.
+- **Editar contrato**: en un contrato vigente se corrigen inicio, renta, depósito y día de pago. Los cargos ya generados no cambian; el vencimiento se sigue moviendo con Renovar o Terminar.
+- **Reservas** (`/reservas`, en el menú): lista de estancias cortas con búsqueda por huésped, correo, teléfono o unidad y filtros por propiedad, fechas y estado. Sin fechas muestra las actuales y próximas. Desde cada fila se ve en el calendario, se edita o se cancela.
+- **Editar reserva**: en la lista y en la ficha de la unidad se corrigen huésped, fechas, unidad, total, origen y notas. Valida cruces igual que el alta (sin contar la propia reserva) bajo el candado de la unidad, y la limpieza pendiente se mueve a la nueva salida y unidad. Las de Airbnb se siguen corrigiendo en Airbnb.
+- **Calendario más fácil de recorrer**: selector de mes y año para saltar directo (por ejemplo a 2027), buscador por persona o unidad (sin importar acentos ni mayúsculas) y botón "Lista de reservas". Quien puede editar abre la reserva o el inquilino con un clic en su barra o en las entradas y salidas de la vista de mes.
+- Pruebas: `bookings.int.test.ts` (editar reservas) y `stay-range.test.ts` (barras del calendario).
+- **Importador de ocupación** (`import-occupancy`, comando del contenedor): carga inquilinos, contratos y número de servicio de luz (CFE) de una arrendadora sobre unidades existentes. Simula por defecto, aplica con `--apply`, respeta las reglas de alta de contratos (candado por unidad, mantenimiento, contratos y reservas cruzadas) y el cupo de usuarios.
+
+### Corregido
+- **Los formularios ya no se borran al fallar**: el alta de inquilino, Asignar unidad, Nueva reserva y los diálogos de editar inquilino y de contrato conservan lo capturado cuando el servidor regresa un error (antes React vaciaba todos los campos). Envían con `useFormAction` (`src/hooks/use-form-action.ts`).
+- **Una estancia que sale el día 1 ya no pinta el mes siguiente**: antes una reserva con salida el 1 de abril se dibujaba ocupando todo abril. El cálculo vive en `src/lib/stay-range.ts`, y el conteo "reservas en el mes" solo cuenta las que ocupan alguna noche.
+
+### Cambiado
+- **Día de pago del 1 al 31** (antes 1 a 28). En meses más cortos el cargo vence el último día del mes.
+
+### Seguridad
+- Migración `tenant_optional_email`: `User.email` admite nulo con un CHECK que solo lo permite en inquilinos; el resto de las cuentas sigue exigiéndolo. No toca datos existentes.
+- Los archivos de clientes con datos personales (`docs/clientes/*/privado/`) quedan fuera de git.
+
 ## [0.11.0] - 2026-10-27
 
 ### Añadido
