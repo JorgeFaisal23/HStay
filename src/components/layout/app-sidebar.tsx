@@ -82,7 +82,8 @@ export function AppSidebar({
 }: {
   brandName: string;
   logoUrl: string | null;
-  user: { name: string; email: string; role: Role };
+  /** `support`: el staff de la plataforma en modo soporte. */
+  user: { name: string; email: string; role: Role; support?: boolean };
   isPremiumPlan: boolean;
 }) {
   const pathname = usePathname();
@@ -93,7 +94,7 @@ export function AppSidebar({
   // El rol de consulta solo ve lo que puede abrir: mostrarle entradas que lo
   // rebotarían al hacer clic sería confuso.
   const mainItems = MAIN_NAV.filter(
-    (item) => item.enabled !== false && canAccessPath(user.role, item.href),
+    (item) => item.enabled !== false && canAccessPath(user.role, item.href, { support: user.support }),
   );
   const showPremium = user.role !== "VIEWER";
 

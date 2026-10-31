@@ -10,7 +10,9 @@ import {
   FORCED_PASSWORD_PATH,
   getSession,
   loginPathFor,
+  SUPPORT_END_PATH,
 } from "@/lib/auth/session";
+import { closeSupportSession } from "@/server/superadmin/support-session";
 import { safeRedirect } from "@/lib/redirect";
 import { SESSION_USER_SELECT, startSession } from "@/server/auth/sign-in";
 import {
@@ -113,6 +115,9 @@ export async function login(
 
 export async function logout() {
   const session = await getSession();
+  if (session?.support) {
+    await closeSupportSession({ ...session, support: session.support }, "LOGOUT", { keepSession: false });
+  }
   if (session) {
     // Solo se borra el registro de sesión si sigue perteneciendo a este
     // dispositivo; si ya entró en otro lado, esa sesión se respeta.
@@ -136,6 +141,8 @@ export async function verifySessionLiveness(): Promise<string | null> {
   const session = await getSession();
   const problem = await checkSessionProblem();
   if (!problem) return null;
+  // El superadministrador sigue con sesión: solo sale de la arrendadora.
+  if (problem === "soporte_terminado") return SUPPORT_END_PATH;
 
   const path = loginPathFor(session?.orgSlug);
   return problem === "sin_sesion" ? path : `${path}?motivo=${problem}`;

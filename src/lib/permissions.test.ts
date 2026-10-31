@@ -68,3 +68,23 @@ describe("homePathFor", () => {
     expect(homePathFor("SUPERADMIN")).toBe("/superadmin");
   });
 });
+
+describe("modo soporte", () => {
+  const support = { support: true };
+
+  it("navega como Administrativo", () => {
+    for (const path of ["/dashboard", "/hoy", "/pagos", "/contratos", "/inquilinos", "/calendario"]) {
+      expect(canAccessPath("ADMIN", path, support), path).toBe(true);
+    }
+  });
+
+  it("no entra a configuración, cuenta personal, portales ni plataforma", () => {
+    for (const path of ["/configuracion", "/configuracion/marca", "/cuenta", "/cambiar-contrasena", "/superadmin", "/portal", "/propietario", "/captura"]) {
+      expect(canAccessPath("ADMIN", path, support), path).toBe(false);
+    }
+  });
+
+  it("fuera de soporte, el Administrativo sí ve su cuenta", () => {
+    expect(canAccessPath("ADMIN", "/cuenta")).toBe(true);
+  });
+});

@@ -10,9 +10,11 @@ import type {
   Role,
   ServiceType,
   SplitMode,
+  SupportEndReason,
   UnitStatus,
   UnitType,
 } from "@/generated/prisma/enums";
+import { APP } from "@/lib/app";
 
 /**
  * Etiquetas en español y colores de estado. El "semáforo" vive aquí para que
@@ -69,6 +71,17 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   PROPERTY_OWNER: "Ve el estado de cuenta de sus propiedades y lo que se le ha entregado",
   CAPTURE: "Registra y corrige reservas solo de las propiedades que se le asignan",
   TENANT: "Entra al portal a ver su contrato y sus pagos",
+};
+
+// ------------------------------------------------------------------ soporte
+
+/** Quién aparece en la bitácora y en el menú cuando el staff de la plataforma da soporte. */
+export const SUPPORT_ACTOR_LABEL = `Soporte de ${APP.name}`;
+
+export const SUPPORT_END_REASON_LABELS: Record<SupportEndReason, string> = {
+  MANUAL: "Terminada por soporte",
+  EXPIRED: "Se cerró sola al vencer",
+  LOGOUT: "Cerrada al salir de la sesión",
 };
 
 // ------------------------------------------------------------------ unidades

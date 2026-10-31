@@ -9,6 +9,20 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 
 ## [Sin publicar]
 
+## [0.15.0] - 2026-10-31
+
+### Añadido
+- **Modo soporte**: el superadministrador entra al panel de una arrendadora desde su ficha ("Entrar en modo soporte") para revisar o corregir su operación. Actúa como Administrativo: no entra a Configuración, marca, equipo ni a su cuenta personal. Pide un motivo (10 a 300 caracteres) y dura 4 horas como máximo; se puede terminar antes desde la barra de soporte. Solo una arrendadora a la vez.
+- **Aviso para la arrendadora**: el dueño y el equipo administrativo ven en su panel, en cualquier plan, quién de la plataforma entró en los últimos 7 días, cuándo y el motivo, y si sigue dentro.
+- La bitácora muestra los cambios hechos en soporte como "Soporte de {producto} · {nombre}", con el inicio y el fin de cada sesión.
+- Historial de sesiones de soporte en la ficha de la arrendadora (quién, cuándo, motivo y cómo terminó).
+- `LocalTime`: horas en la zona del navegador (el servidor corre en UTC).
+- Pruebas: `support.int.test.ts`, `jwt.test.ts` y los casos de soporte en `permissions.test.ts`.
+
+### Seguridad
+- Migración `support_sessions`: tabla `SupportSession` y enum `SupportEndReason`. No toca datos existentes.
+- El soporte es un claim de la sesión del superadministrador (mismo usuario y sesión única); el token solo lo acepta sobre una sesión de plataforma, y la base lo revalida en cada petición: fila abierta, sin vencer, del mismo superadministrador y con la arrendadora activa. Vencido o terminado, regresa al panel de plataforma sin cerrar la sesión; cerrar sesión también lo termina.
+
 ## [0.14.0] - 2026-10-31
 
 ### Añadido

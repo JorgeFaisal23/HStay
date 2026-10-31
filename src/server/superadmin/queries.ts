@@ -201,3 +201,21 @@ export async function listOrganizationNames() {
     select: { id: true, name: true },
   });
 }
+
+/** Sesiones de soporte de una arrendadora, las más recientes primero. */
+export async function getSupportHistory(orgId: string, take = 10) {
+  return prisma.supportSession.findMany({
+    where: { organizationId: orgId },
+    orderBy: { startedAt: "desc" },
+    take,
+    select: {
+      id: true,
+      reason: true,
+      startedAt: true,
+      expiresAt: true,
+      endedAt: true,
+      endReason: true,
+      superadmin: { select: { name: true } },
+    },
+  });
+}

@@ -291,6 +291,8 @@ Antes de crear algo, revisa esta tabla. Los primitivos de `src/components/ui/` s
 | Mostrar una función Premium | `PremiumGate` / `PremiumBadge` | Botones deshabilitados sin explicación |
 | Anunciar una función que aún no existe | [`ComingSoonBadge`](src/components/premium/coming-soon-badge.tsx) junto al nombre o dentro del botón deshabilitado; [`ComingSoon`](src/components/premium/coming-soon-badge.tsx) para una sección completa | Pantallas con datos inventados o estados simulados |
 | Mostrar carga | `loading.tsx` con `PageSkeleton` o `Skeleton` con la forma del contenido | Spinners de pantalla completa |
+| Mostrar una hora ("14:15", "31 oct, 14:15") | [`LocalTime`](src/components/shared/local-time.tsx): se pinta en la zona del navegador | Formatear horas en el servidor (corre en UTC) |
+| Avisar que el staff de la plataforma está o estuvo dentro | [`SupportBanner`](src/components/layout/support-banner.tsx) (`warning`, con "Terminar soporte") mientras dura; [`SupportNotice`](src/components/layout/support-notice.tsx) (`info`) para la arrendadora. Ambos son `Callout` `banner` bajo el encabezado | Avisos a mano o esconder que alguien de la plataforma entró |
 
 **Botones, en orden de jerarquía:**
 

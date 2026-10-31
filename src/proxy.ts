@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, verifySession } from "@/lib/auth/jwt";
+import { SESSION_COOKIE, effectiveSession, supportExpired, verifySession } from "@/lib/auth/jwt";
 import { brandedPublicSlug, loginPathFor, ORG_COOKIE } from "@/lib/auth/paths";
 import { canAccessPath, homePathFor } from "@/lib/permissions";
 
@@ -7,7 +7,7 @@ import { canAccessPath, homePathFor } from "@/lib/permissions";
 const PUBLIC_PATHS = ["/login", "/recuperar"];
 
 /** Rutas que cualquiera puede abrir, con o sin sesión y sea cual sea su rol. */
-const ALWAYS_ALLOWED = ["/salir"];
+const ALWAYS_ALLOWED = ["/salir", "/soporte/terminar"];
 
 /** Enlaces de un solo uso que llegan por correo: /restablecer/{token}, /invitacion/{token}. */
 const TOKEN_LINK = /^\/(restablecer|invitacion)\/[A-Za-z0-9_-]+$/;
@@ -27,9 +27,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(`/a/${orgRoot[1]}/login`, request.url));
   }
 
-  const session = await verifySession(
-    request.cookies.get(SESSION_COOKIE)?.value,
-  );
+  const token = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
+
+  // Un modo soporte vencido se cierra antes de cualquier otra cosa: regresa al
+  // superadministrador a su panel.
+  if (token?.support && supportExpired(token.support)) {
+    return NextResponse.redirect(new URL("/soporte/terminar", request.url));
+  }
+
+  // En modo soporte se navega como Administrativo de la arrendadora.
+  const session = token ? effectiveSession(token) : null;
 
   if (PUBLIC_PATHS.includes(pathname) || brandedPublicSlug(pathname)) {
     // Quien ya inició sesión no necesita ver el login otra vez, salvo
@@ -55,7 +62,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(homePathFor(session.role), request.url));
   }
 
-  if (!canAccessPath(session.role, pathname)) {
+  if (!canAccessPath(session.role, pathname, { support: Boolean(session.supportSessionId) })) {
     return NextResponse.redirect(new URL(homePathFor(session.role), request.url));
   }
 

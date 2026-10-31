@@ -8,8 +8,11 @@ import { Separator } from "@/components/ui/separator";
 import { requireOrgUser } from "@/lib/auth/session";
 import { requireCurrentOrg } from "@/lib/org";
 import { sweepOrgSafely } from "@/lib/db/sweep";
-import { ROLE_LABELS } from "@/lib/labels";
+import { ROLE_LABELS, SUPPORT_ACTOR_LABEL } from "@/lib/labels";
+import { recentSupportSessions } from "@/lib/queries/support";
 import { ReadOnlyNotice } from "@/components/layout/read-only-notice";
+import { SupportBanner } from "@/components/layout/support-banner";
+import { SupportNotice } from "@/components/layout/support-notice";
 import { SessionMonitor } from "@/components/layout/session-monitor";
 
 export default async function DashboardLayout({
@@ -17,10 +20,18 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { session } = await requireOrgUser(["OWNER", "ADMIN", "VIEWER"]);
+  const { session, db } = await requireOrgUser(["OWNER", "ADMIN", "VIEWER"]);
   // Contratos vencidos y cobros atrasados se marcan al abrir (máx. 1 vez/hora).
   await sweepOrgSafely(session.orgId);
   const org = await requireCurrentOrg();
+
+  // En modo soporte, la barra con la salida; para el dueño y el equipo
+  // administrativo, el aviso de quién de la plataforma entró.
+  const support = session.support && session.supportSessionId ? session.support : null;
+  const supportSessions =
+    !support && (session.role === "OWNER" || session.role === "ADMIN")
+      ? await recentSupportSessions(db)
+      : [];
 
   return (
     <SidebarProvider>
@@ -32,6 +43,7 @@ export default async function DashboardLayout({
           name: session.name,
           email: session.email,
           role: session.role,
+          support: Boolean(support),
         }}
         isPremiumPlan={org.plan === "PREMIUM"}
       />
@@ -43,10 +55,14 @@ export default async function DashboardLayout({
             {org.name}
           </span>
           <span className="text-muted-foreground/60 ml-auto hidden text-xs sm:inline">
-            {ROLE_LABELS[session.role]}
+            {support ? SUPPORT_ACTOR_LABEL : ROLE_LABELS[session.role]}
           </span>
         </header>
 
+        {support ? (
+          <SupportBanner orgName={org.name} expiresAt={new Date(support.expiresAt * 1000)} />
+        ) : null}
+        <SupportNotice sessions={supportSessions} />
         {session.role === "VIEWER" ? <ReadOnlyNotice /> : null}
 
         <main className="flex-1 space-y-6 p-4 sm:p-6">{children}</main>

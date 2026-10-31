@@ -1,19 +1,19 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth/session";
+import { getEffectiveSession } from "@/lib/auth/session";
 import { APP_BRAND, type BrandIdentity } from "@/lib/brand";
 import type { Organization } from "@/generated/prisma/client";
 
 /**
  * Arrendadora de la sesión actual, o null si no hay sesión o es el
- * superadministrador. `cache` evita repetir la consulta cuando varios
+ * superadministrador fuera de modo soporte (en soporte, la que atiende). `cache` evita repetir la consulta cuando varios
  * componentes del mismo render la necesitan.
  *
  * Solo verifica la firma del token; la validez de la sesión (cuenta activa,
  * arrendadora no suspendida) la imponen requireUser y requireOrgUser.
  */
 export const getCurrentOrg = cache(async (): Promise<Organization | null> => {
-  const session = await getSession();
+  const session = await getEffectiveSession();
   if (!session?.orgId) return null;
   try {
     return await prisma.organization.findUnique({ where: { id: session.orgId } });
