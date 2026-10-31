@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, NativeSelect } from "@/components/shared/form-field";
 import { UNIT_STATUS_LABELS, UNIT_TYPE_LABELS } from "@/lib/labels";
 import type { UnitStatus, UnitType } from "@/generated/prisma/enums";
+import type { Currency } from "@/lib/currency";
 
 export type UnitDefaults = {
   buildingId?: string;
@@ -12,16 +14,22 @@ export type UnitDefaults = {
   name?: string | null;
   type?: UnitType;
   status?: UnitStatus;
-  currency?: "MXN" | "USD";
   floor?: number | null;
   bedrooms?: number;
   bathrooms?: number;
   sizeM2?: number | null;
   baseRent?: number;
-  nightlyPrice?: number | null;
-  weeklyPrice?: number | null;
+  nightlyRate?: number | null;
+  weeklyRate?: number | null;
+  monthlyRate?: number | null;
   description?: string | null;
 };
+
+const STAY_RATES = [
+  { name: "nightlyRate", label: "Por noche", placeholder: "1200" },
+  { name: "weeklyRate", label: "Por semana", placeholder: "7000" },
+  { name: "monthlyRate", label: "Por mes", placeholder: "22000" },
+] as const;
 
 const TYPES: UnitType[] = ["ROOM", "APARTMENT", "STUDIO", "COMMERCIAL"];
 const STATUSES: UnitStatus[] = [
@@ -40,10 +48,13 @@ export function UnitFormFields({
   defaults = {},
   lockBuilding = false,
 }: {
-  buildings: { id: string; name: string }[];
+  buildings: { id: string; name: string; currency?: Currency }[];
   defaults?: UnitDefaults;
   lockBuilding?: boolean;
 }) {
+  // La moneda de la propiedad elegida: en ella se capturan renta y tarifas.
+  const [buildingId, setBuildingId] = useState(defaults.buildingId ?? "");
+  const currency = buildings.find((b) => b.id === buildingId)?.currency;
   return (
     <div className="space-y-4">
       <Field label="Propiedad" htmlFor="buildingId" required>
@@ -51,7 +62,8 @@ export function UnitFormFields({
           id="buildingId"
           name="buildingId"
           required
-          defaultValue={defaults.buildingId ?? ""}
+          value={buildingId}
+          onChange={(e) => setBuildingId(e.target.value)}
           disabled={lockBuilding}
         >
           <option value="" disabled>
@@ -129,73 +141,51 @@ export function UnitFormFields({
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Moneda" htmlFor="currency" required hint="Moneda de cobro">
-          <NativeSelect
-            id="currency"
-            name="currency"
-            defaultValue={defaults.currency ?? "MXN"}
-          >
-            <option value="MXN">MXN ($ Pesos Mexicanos)</option>
-            <option value="USD">USD ($ Dólares Americanos)</option>
-          </NativeSelect>
-        </Field>
-
-        <Field
-          label="Renta mensual"
-          htmlFor="baseRent"
+      <Field
+        label={`Renta mensual${currency ? ` (${currency})` : ""}`}
+        htmlFor="baseRent"
+        required
+        hint="La que se propone al hacer un contrato. Si la unidad solo se renta por noche, deja 0."
+      >
+        <Input
+          id="baseRent"
+          name="baseRent"
+          type="number"
+          min={0}
+          step={50}
           required
-          hint="Monto base mensual de arrendamiento."
-        >
-          <Input
-            id="baseRent"
-            name="baseRent"
-            type="number"
-            min={0}
-            step={50}
-            required
-            defaultValue={defaults.baseRent}
-            placeholder="6500"
-            className="tabular-nums"
-          />
-        </Field>
-      </div>
+          defaultValue={defaults.baseRent}
+          placeholder="6500"
+          className="tabular-nums"
+        />
+      </Field>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Tarifa por noche (opcional)"
-          htmlFor="nightlyPrice"
-          hint="Para estancias cortas o Airbnb."
-        >
-          <Input
-            id="nightlyPrice"
-            name="nightlyPrice"
-            type="number"
-            min={0}
-            step={10}
-            defaultValue={defaults.nightlyPrice ?? ""}
-            placeholder="850"
-            className="tabular-nums"
-          />
-        </Field>
-
-        <Field
-          label="Tarifa semanal (opcional)"
-          htmlFor="weeklyPrice"
-          hint="Para estancias semanales."
-        >
-          <Input
-            id="weeklyPrice"
-            name="weeklyPrice"
-            type="number"
-            min={0}
-            step={50}
-            defaultValue={defaults.weeklyPrice ?? ""}
-            placeholder="5000"
-            className="tabular-nums"
-          />
-        </Field>
-      </div>
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">
+          Tarifas de estancia corta{currency ? ` en ${currency}` : ""}{" "}
+          <span className="text-muted-foreground font-normal">(opcional)</span>
+        </legend>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {STAY_RATES.map((rate) => (
+            <Field key={rate.name} label={rate.label} htmlFor={rate.name}>
+              <Input
+                id={rate.name}
+                name={rate.name}
+                type="number"
+                min={0}
+                step={50}
+                defaultValue={defaults[rate.name] ?? ""}
+                placeholder={rate.placeholder}
+                className="tabular-nums"
+              />
+            </Field>
+          ))}
+        </div>
+        <p className="text-muted-foreground text-xs text-pretty">
+          El total de una reserva se sugiere por bloques: cada 30 noches con la tarifa mensual, cada 7
+          con la semanal y el resto por noche. Deja vacías las que no uses.
+        </p>
+      </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-4">
         <Field label="Piso" htmlFor="floor">

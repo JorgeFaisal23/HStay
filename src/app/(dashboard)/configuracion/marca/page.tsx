@@ -3,15 +3,15 @@ import { PageHeader } from "@/components/shared/page-header";
 import { AppMark } from "@/components/shared/app-mark";
 import { Card, CardContent } from "@/components/ui/card";
 import { APP, APP_VERSION_LABEL } from "@/lib/app";
-import { requireUser } from "@/lib/auth/session";
-import { getOrganization } from "@/lib/org";
+import { requireOrgUser } from "@/lib/auth/session";
+import { requireCurrentOrg } from "@/lib/org";
 import { BrandForm } from "./brand-form";
 
 export const metadata: Metadata = { title: "Personalización" };
 
 export default async function BrandPage() {
-  const session = await requireUser(["OWNER"]);
-  const org = await getOrganization(session.organizationId);
+  await requireOrgUser(["OWNER"]);
+  const org = await requireCurrentOrg();
 
   return (
     <>

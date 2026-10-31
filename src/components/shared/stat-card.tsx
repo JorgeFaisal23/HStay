@@ -2,7 +2,10 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 
-/** Tarjeta de indicador para el dashboard y los totales de servicios. */
+/**
+ * Tarjeta de indicador para el dashboard y los totales. La cifra va en tamaño
+ * display; para dinero se pasa un <Amount compact />.
+ */
 export function StatCard({
   label,
   value,
@@ -12,7 +15,7 @@ export function StatCard({
   className,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   hint?: string;
   icon?: LucideIcon;
   tone?: "default" | "brand" | "danger";
@@ -27,9 +30,8 @@ export function StatCard({
             <span
               className={cn(
                 "rounded-md p-1.5",
-                tone === "brand" && "bg-primary/10 text-primary",
-                tone === "danger" &&
-                  "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+                tone === "brand" && "bg-brand-soft text-brand-strong",
+                tone === "danger" && "bg-danger-soft text-danger-foreground",
                 tone === "default" && "bg-muted text-muted-foreground",
               )}
             >
@@ -37,14 +39,14 @@ export function StatCard({
             </span>
           ) : null}
         </div>
-        <p
+        <div
           className={cn(
-            "mt-2 text-2xl font-semibold tracking-tight tabular-nums",
-            tone === "danger" && "text-rose-600 dark:text-rose-400",
+            "mt-2 text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl",
+            tone === "danger" && "text-danger-foreground",
           )}
         >
           {value}
-        </p>
+        </div>
         {hint ? (
           <p className="text-muted-foreground mt-1 text-xs text-pretty">{hint}</p>
         ) : null}

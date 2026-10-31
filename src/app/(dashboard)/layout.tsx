@@ -5,21 +5,26 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { requireUser } from "@/lib/auth/session";
-import { getOrganization } from "@/lib/org";
+import { requireOrgUser } from "@/lib/auth/session";
+import { requireCurrentOrg } from "@/lib/org";
+import { sweepOrgSafely } from "@/lib/db/sweep";
 import { ROLE_LABELS } from "@/lib/labels";
 import { ReadOnlyNotice } from "@/components/layout/read-only-notice";
+import { SessionMonitor } from "@/components/layout/session-monitor";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireUser(["OWNER", "ADMIN", "VIEWER"]);
-  const org = await getOrganization(session.organizationId);
+  const { session } = await requireOrgUser(["OWNER", "ADMIN", "VIEWER"]);
+  // Contratos vencidos y cobros atrasados se marcan al abrir (máx. 1 vez/hora).
+  await sweepOrgSafely(session.orgId);
+  const org = await requireCurrentOrg();
 
   return (
     <SidebarProvider>
+      <SessionMonitor />
       <AppSidebar
         brandName={org.brandName}
         logoUrl={org.logoUrl}
@@ -31,7 +36,7 @@ export default async function DashboardLayout({
         isPremiumPlan={org.plan === "PREMIUM"}
       />
       <SidebarInset>
-        <header className="bg-background/95 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b px-4 backdrop-blur">
+        <header className="glass sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-1 h-4" />
           <span className="text-muted-foreground truncate text-sm">

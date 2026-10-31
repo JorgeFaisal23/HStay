@@ -1,84 +1,83 @@
-# ==============================================================================
-# Dockerfile Multietapa Optimizado para Producción (Next.js Standalone + Prisma)
-# ==============================================================================
+# Imagen de producción.
+#
+#   docker build -t apprentas .
+#   docker compose up -d            (ver docker-compose.yml)
+#
+# Tres etapas:
+#   builder  instala dependencias y compila Next en modo standalone.
+#   migrator herramientas mínimas para migrar y crear el superadministrador
+#            (CLI de Prisma, pg, bcryptjs) en su propia carpeta, sin el resto
+#            de node_modules.
+#   runner   la imagen final: server.js de Next + /migrator. Al arrancar
+#            aplica las migraciones pendientes (docker-entrypoint.sh).
 
-# 1. Base Image
-FROM node:22-alpine AS base
-RUN apk add --no-cache libc6-compat openssl
+ARG NODE_VERSION=24
+ARG PRISMA_VERSION=7.10.0
+
+# ------------------------------------------------------------------ builder
+FROM node:${NODE_VERSION}-bookworm-slim AS builder
 WORKDIR /app
 
-# 2. Dependencias de Construcción
-FROM base AS deps
-WORKDIR /app
+# openssl: lo pide Prisma al generar el cliente.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json .npmrc ./
 COPY prisma ./prisma
+COPY prisma7.config.ts ./
 RUN npm ci
 
-# 3. Compilación (Builder)
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generar cliente de Prisma y compilar Next.js
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
-ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
-RUN npx prisma generate
-RUN npm run build
+# Identidad del producto: las variables NEXT_PUBLIC_ se incrustan al compilar.
+ARG NEXT_PUBLIC_APP_NAME
+ARG NEXT_PUBLIC_APP_TAGLINE
+ARG NEXT_PUBLIC_APP_COLOR
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
+    NEXT_PUBLIC_APP_TAGLINE=$NEXT_PUBLIC_APP_TAGLINE \
+    NEXT_PUBLIC_APP_COLOR=$NEXT_PUBLIC_APP_COLOR \
+    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
+    NEXT_TELEMETRY_DISABLED=1
 
-# 4. Dependencias Ligeras de Producción (para CLI de Prisma, tsx y scripts de mantenimiento)
-FROM base AS prod-deps
+# El build no necesita base de datos (las páginas se renderizan por petición).
+RUN npx prisma generate && npm run build
+
+# ------------------------------------------------------------------ migrator
+FROM node:${NODE_VERSION}-bookworm-slim AS migrator
+ARG PRISMA_VERSION
+WORKDIR /migrator
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+RUN npm init -y >/dev/null \
+  && npm install --omit=dev --no-audit --no-fund \
+     prisma@${PRISMA_VERSION} dotenv@17 pg@8 bcryptjs@3
+COPY prisma/schema.prisma prisma/env.ts ./prisma/
+COPY prisma/migrations ./prisma/migrations
+COPY prisma7.config.ts scripts/create-superadmin.mjs scripts/import-occupancy.mjs ./
+
+# ------------------------------------------------------------------ runner
+FROM node:${NODE_VERSION}-bookworm-slim AS runner
 WORKDIR /app
-COPY package.json package-lock.json .npmrc ./
-COPY prisma ./prisma
-RUN npm ci --omit=dev
 
-# 5. Imagen de Ejecución Ligera (Runner)
-FROM base AS runner
-WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
 
-# Crear usuario sin privilegios por seguridad
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=migrator --chown=node:node /migrator /migrator
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# Por si el archivo llegó con fin de línea CRLF (checkout en Windows).
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh
 
-# Precrear directorios de uploads y cache con permisos correctos para usuario nextjs
-RUN mkdir -p /app/public/uploads /app/.next \
-  && chown -R nextjs:nodejs /app/public /app/.next
-
-# Copiar archivos públicos y estáticos
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-
-# Copiar artefactos standalone producidos por Next.js
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Copiar dependencias de producción completas (permite ejecutar CLI de Prisma y tsx)
-COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
-
-# Copiar esquemas de Prisma, cliente generado, scripts e inventario para operaciones de BD
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/prisma7.config.ts ./prisma7.config.ts
-COPY --from=builder --chown=nextjs:nodejs /app/src/generated ./src/generated
-COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
-
-# Copiar script de entrada (entrypoint) para migraciones automáticas
-COPY --chown=nextjs:nodejs scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Cambiar a usuario no-root
-USER nextjs
-
+USER node
 EXPOSE 3000
 
-# Verificación de salud del contenedor
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health || exit 1
-
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["node", "server.js"]
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["start"]

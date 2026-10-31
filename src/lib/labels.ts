@@ -1,7 +1,12 @@
 import type {
   BookingSource,
+  BookingStatus,
   ChargeStatus,
+  ExpenseStatus,
   LeaseStatus,
+  ProofStatus,
+  TaskKind,
+  TaskStatus,
   Role,
   ServiceType,
   SplitMode,
@@ -18,38 +23,51 @@ import type {
 export type Tone = "success" | "warning" | "danger" | "neutral" | "info";
 
 export const TONE_CLASSES: Record<Tone, string> = {
-  success:
-    "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900",
-  warning:
-    "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900",
-  danger:
-    "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-900",
-  neutral:
-    "bg-muted text-muted-foreground border-border",
-  info: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-900",
+  success: "bg-success-soft text-success-foreground border-success-border",
+  warning: "bg-warning-soft text-warning-foreground border-warning-border",
+  danger: "bg-danger-soft text-danger-foreground border-danger-border",
+  neutral: "bg-muted text-muted-foreground border-border",
+  info: "bg-info-soft text-info-foreground border-info-border",
 };
 
 export const TONE_DOT: Record<Tone, string> = {
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  danger: "bg-rose-500",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
   neutral: "bg-muted-foreground/50",
-  info: "bg-sky-500",
+  info: "bg-info",
+};
+
+/** Texto en color de estado, sin fondo: cifras y avisos en línea. */
+export const TONE_TEXT: Record<Tone, string> = {
+  success: "text-success-foreground",
+  warning: "text-warning-foreground",
+  danger: "text-danger-foreground",
+  neutral: "text-muted-foreground",
+  info: "text-info-foreground",
 };
 
 // ------------------------------------------------------------------ roles
 
 export const ROLE_LABELS: Record<Role, string> = {
+  SUPERADMIN: "Superadministrador",
   OWNER: "Arrendador",
   ADMIN: "Administrativo",
   VIEWER: "Consulta",
+  OPERATIONS: "Operación",
+  PROPERTY_OWNER: "Propietario",
+  CAPTURE: "Captura",
   TENANT: "Inquilino",
 };
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  OWNER: "Acceso total, incluida la marca y el plan",
+  SUPERADMIN: "Administra las arrendadoras de la plataforma",
+  OWNER: "Acceso total, incluida la marca y el equipo",
   ADMIN: "Gestiona propiedades, servicios y cobros",
   VIEWER: "Solo puede consultar el calendario",
+  OPERATIONS: "Ve y cierra las limpiezas y reparaciones que se le asignan",
+  PROPERTY_OWNER: "Ve el estado de cuenta de sus propiedades y lo que se le ha entregado",
+  CAPTURE: "Registra y corrige reservas solo de las propiedades que se le asignan",
   TENANT: "Entra al portal a ver su contrato y sus pagos",
 };
 
@@ -119,6 +137,51 @@ export const CHARGE_STATUS_TONES: Record<ChargeStatus, Tone> = {
   OVERDUE: "danger",
 };
 
+// ------------------------------------------------------------------ comprobantes
+
+export const PROOF_STATUS_LABELS: Record<ProofStatus, string> = {
+  SUBMITTED: "Por revisar",
+  APPROVED: "Aprobado",
+  REJECTED: "Rechazado",
+};
+
+export const PROOF_STATUS_TONES: Record<ProofStatus, Tone> = {
+  SUBMITTED: "info",
+  APPROVED: "success",
+  REJECTED: "danger",
+};
+
+// ------------------------------------------------------------------ operación
+
+export const TASK_KIND_LABELS: Record<TaskKind, string> = {
+  CLEANING: "Limpieza",
+  REPAIR: "Reparación",
+};
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  OPEN: "Por hacer",
+  DONE: "Hecha",
+  CANCELLED: "Cancelada",
+};
+
+export const TASK_STATUS_TONES: Record<TaskStatus, Tone> = {
+  OPEN: "warning",
+  DONE: "success",
+  CANCELLED: "neutral",
+};
+
+export const EXPENSE_STATUS_LABELS: Record<ExpenseStatus, string> = {
+  PENDING: "Por aprobar",
+  APPROVED: "Aprobado",
+  REJECTED: "Rechazado",
+};
+
+export const EXPENSE_STATUS_TONES: Record<ExpenseStatus, Tone> = {
+  PENDING: "warning",
+  APPROVED: "success",
+  REJECTED: "danger",
+};
+
 // ------------------------------------------------------------------ contratos
 
 export const LEASE_STATUS_LABELS: Record<LeaseStatus, string> = {
@@ -149,9 +212,21 @@ export const BOOKING_SOURCE_LABELS: Record<BookingSource, string> = {
  * siendo legible aunque el arrendador elija un color de marca parecido.
  */
 export const BOOKING_SOURCE_CLASSES: Record<BookingSource, string> = {
-  AIRBNB: "bg-rose-500 text-white",
-  DIRECT: "bg-emerald-600 text-white",
-  MANUAL: "bg-slate-500 text-white",
+  AIRBNB: "bg-event-airbnb text-event-foreground",
+  DIRECT: "bg-event-direct text-event-foreground",
+  MANUAL: "bg-event-manual text-event-foreground",
 };
 
-export const LEASE_BAR_CLASS = "bg-sky-600 text-white";
+export const LEASE_BAR_CLASS = "bg-event-lease text-event-foreground";
+
+export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
+  CONFIRMED: "Confirmada",
+  CANCELLED: "Cancelada",
+  COMPLETED: "Terminada",
+};
+
+export const BOOKING_STATUS_TONES: Record<BookingStatus, Tone> = {
+  CONFIRMED: "success",
+  CANCELLED: "neutral",
+  COMPLETED: "neutral",
+};

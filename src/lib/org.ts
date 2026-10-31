@@ -1,52 +1,53 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_BRAND } from "@/lib/brand";
+import { getSession } from "@/lib/auth/session";
+import { APP_BRAND, type BrandIdentity } from "@/lib/brand";
+import type { Organization } from "@/generated/prisma/client";
 
 /**
- * Valores de respaldo para cuando no hay fila que leer: antes de sembrar la
- * base, y también si la base no contesta.
+ * Arrendadora de la sesión actual, o null si no hay sesión o es el
+ * superadministrador. `cache` evita repetir la consulta cuando varios
+ * componentes del mismo render la necesitan.
+ *
+ * Solo verifica la firma del token; la validez de la sesión (cuenta activa,
+ * arrendadora no suspendida) la imponen requireUser y requireOrgUser.
  */
-const ORGANIZACION_POR_DEFECTO = {
-  id: "sin-organizacion",
-  name: "Mi arrendadora",
-  plan: "FREE" as const,
-  brandName: "Rentas",
-  logoUrl: null,
-  primaryColor: DEFAULT_BRAND.primaryColor,
-  radius: DEFAULT_BRAND.radius,
-  fontFamily: DEFAULT_BRAND.fontFamily,
-  loginBackgroundUrl: null,
-  contactEmail: null,
-  contactPhone: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
-/**
- * Resuelve la organización activa. Si se proporciona `orgId`, busca dicha organización;
- * de lo contrario o si no existe, toma la primera disponible o los valores por defecto.
- * `cache` evita repetir la consulta dentro del mismo ciclo de render de RSC.
- */
-export const getOrganization = cache(async (orgId?: string | null) => {
+export const getCurrentOrg = cache(async (): Promise<Organization | null> => {
+  const session = await getSession();
+  if (!session?.orgId) return null;
   try {
-    if (orgId) {
-      const org = await prisma.organization.findUnique({
-        where: { id: orgId },
-      });
-      if (org) return org;
-    }
-
-    const org = await prisma.organization.findFirst({
-      orderBy: { createdAt: "asc" },
-    });
-    return org ?? ORGANIZACION_POR_DEFECTO;
+    return await prisma.organization.findUnique({ where: { id: session.orgId } });
   } catch (error) {
-    console.error("No se pudo leer la organización:", error);
-    return ORGANIZACION_POR_DEFECTO;
+    // El layout raíz pinta la marca desde aquí: si la base no contesta se
+    // sirve la marca del producto en vez de tumbar la página entera. Las
+    // páginas con datos reales siguen fallando por su cuenta.
+    console.error("No se pudo leer la arrendadora:", error);
+    return null;
   }
 });
 
-export async function isPremium(orgId?: string | null) {
-  const org = await getOrganization(orgId);
-  return org.plan === "PREMIUM";
+/**
+ * Para páginas que ya pasaron por requireOrgUser: la arrendadora existe, así
+ * que un null aquí solo puede ser una falla de la base y se trata como error.
+ */
+export async function requireCurrentOrg(): Promise<Organization> {
+  const org = await getCurrentOrg();
+  if (!org) throw new Error("No se pudo cargar la arrendadora de la sesión.");
+  return org;
+}
+
+/** Arrendadora por su slug público (acceso con marca). */
+export const getOrgBySlug = cache(async (slug: string) =>
+  prisma.organization.findUnique({ where: { slug } }),
+);
+
+/** Marca a pintar: la de la arrendadora de la sesión o la del producto. */
+export async function getCurrentBrand(): Promise<BrandIdentity> {
+  const org = await getCurrentOrg();
+  return org ?? APP_BRAND;
+}
+
+export async function isPremium() {
+  const org = await getCurrentOrg();
+  return org?.plan === "PREMIUM";
 }

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  *
  * Va en pie de página y en el pie del menú lateral, nunca junto al nombre de
  * la arrendadora: el usuario debe poder distinguir de un vistazo quién le
- * cobra (la marca del arrendador) de con qué lo hace (CARCAR).
+ * cobra (la marca de la arrendadora) de con qué lo hace (el producto, APP.name).
  */
 export function AppSignature({
   showVersion = false,

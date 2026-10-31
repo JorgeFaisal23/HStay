@@ -23,19 +23,15 @@
 # misc
 .DS_Store
 *.pem
-*.key
-
-# datos personales de inquilinos de clientes (nombres, teléfonos)
-docs/clientes/*/privado/
-
-# private server connection guides
-docs/despliegue/como-conectar-y-actualizar.md
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# datos personales de inquilinos de clientes (nombres, teléfonos)
+docs/clientes/*/privado/
 
 # env files
 .env*
@@ -57,13 +53,16 @@ next-env.d.ts
 .idea/
 Thumbs.db
 
-# AI assistant artifacts & MCP
+# AI assistant artifacts
 .claude/
 .windsurf/
 .agents/
 skills-lock.json
-.mcp.json
 
-# runtime uploads
-/public/uploads/
+# Documentos internos
+/docs/internos/
+*.xlsx
+*.docx
 
+# Llaves SSH del VPS
+/Llaves/

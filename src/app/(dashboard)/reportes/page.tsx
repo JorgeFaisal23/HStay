@@ -1,9 +1,19 @@
 import type { Metadata } from "next";
-import { Download, PiggyBank, Receipt, TrendingUp } from "lucide-react";
+import { PiggyBank, Receipt, TrendingUp } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
+import { Amount } from "@/components/shared/amount";
+import { ButtonLink } from "@/components/shared/button-link";
+import { CURRENCY_LABELS, isCurrency } from "@/lib/currency";
 import { PremiumGate } from "@/components/premium/premium-gate";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -12,11 +22,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { requireUser } from "@/lib/auth/session";
-import { getOrganization } from "@/lib/org";
+import { requireOrgUser } from "@/lib/auth/session";
+import { requireCurrentOrg } from "@/lib/org";
 import { chartPalette } from "@/lib/brand";
 import { getReportsData } from "@/lib/queries/reports";
-import { money, moneyCompact } from "@/lib/format";
+import { moneyCompact, periodLabel, recentPeriods } from "@/lib/format";
+import { ExportMenu } from "@/components/reports/export-menu";
 import {
   IncomeVsExpensesChart,
   ProfitByBuildingChart,
@@ -25,12 +36,18 @@ import {
 
 export const metadata: Metadata = { title: "Reportes" };
 
-export default async function ReportsPage() {
-  const session = await requireUser(["OWNER", "ADMIN"]);
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ moneda?: string }>;
+}) {
+  const { db } = await requireOrgUser(["OWNER", "ADMIN"]);
+  const { moneda } = await searchParams;
   const [data, org] = await Promise.all([
-    getReportsData(6, session.organizationId),
-    getOrganization(session.organizationId),
+    getReportsData(db, 6, isCurrency(moneda) ? moneda : undefined),
+    requireCurrentOrg(),
   ]);
+  const currency = data.currency;
   // Colores concretos derivados de la marca: Recharts no resuelve var() en los
   // atributos del SVG.
   const colors = chartPalette(org.primaryColor);
@@ -47,41 +64,61 @@ export default async function ReportsPage() {
         title="Reportes"
         description="Rentabilidad, ocupación y gasto de tus propiedades a lo largo del tiempo."
         action={
-          <Button variant="outline" disabled>
-            <Download className="size-4" aria-hidden />
-            Exportar
-          </Button>
+          <ExportMenu
+            enabled={org.plan === "PREMIUM"}
+            months={recentPeriods(2).map((period) => ({
+              period,
+              label: periodLabel(period).toLowerCase(),
+            }))}
+          />
         }
       />
 
       <PremiumGate
         title="Reportes y analítica"
-        description="Mide la rentabilidad real de cada propiedad, compara meses, detecta en qué se te va el dinero y exporta todo a Excel o PDF."
+        description="Mide la rentabilidad real de cada propiedad, compara meses y detecta en qué se te va el dinero."
       >
         <div className="space-y-6">
+          {/* Un reporte es de una sola moneda: sus gráficas no mezclan pesos con dólares. */}
+          {data.currencies.length > 1 ? (
+            <nav aria-label="Moneda del reporte" className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Propiedades en</span>
+              {data.currencies.map((c) => (
+                <ButtonLink
+                  key={c}
+                  href={`/reportes?moneda=${c}`}
+                  variant={c === currency ? "default" : "outline"}
+                  size="sm"
+                  aria-current={c === currency ? "page" : undefined}
+                >
+                  {CURRENCY_LABELS[c]}
+                </ButtonLink>
+              ))}
+            </nav>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Renta facturada (6 meses)"
-              value={moneyCompact(data.totals.income)}
-              hint={`${moneyCompact(data.totals.collected)} efectivamente cobrados`}
+              value={<Amount value={data.totals.income} currency={currency} compact />}
+              hint={`${moneyCompact(data.totals.collected, currency)} efectivamente cobrados`}
               icon={TrendingUp}
               tone="brand"
             />
             <StatCard
-              label="Gasto en servicios"
-              value={moneyCompact(data.totals.expenses)}
-              hint="Agua, luz, internet y mantenimiento"
+              label="Gastos"
+              value={<Amount value={data.totals.expenses} currency={currency} compact />}
+              hint="Servicios y reparaciones aprobadas"
               icon={Receipt}
             />
             <StatCard
               label="Resultado neto"
-              value={moneyCompact(net)}
+              value={<Amount value={net} currency={currency} compact />}
               hint={`Margen del ${margin}%`}
               icon={PiggyBank}
             />
             <StatCard
               label="Ingreso por renta corta"
-              value={moneyCompact(data.totals.shortTermIncome)}
+              value={<Amount value={data.totals.shortTermIncome} currency={currency} compact />}
               hint="Reservas confirmadas y completadas"
               icon={TrendingUp}
             />
@@ -95,7 +132,7 @@ export default async function ReportsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <IncomeVsExpensesChart data={data.monthly} colors={colors} />
+              <IncomeVsExpensesChart data={data.monthly} colors={colors} currency={currency} />
             </CardContent>
           </Card>
 
@@ -108,7 +145,7 @@ export default async function ReportsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ProfitByBuildingChart data={data.byBuilding} colors={colors} />
+                <ProfitByBuildingChart data={data.byBuilding} colors={colors} currency={currency} />
               </CardContent>
             </Card>
 
@@ -116,11 +153,11 @@ export default async function ReportsPage() {
               <CardHeader>
                 <CardTitle>En qué se va el gasto</CardTitle>
                 <CardDescription>
-                  Distribución por tipo de servicio.
+                  Distribución por tipo de servicio y reparaciones aprobadas.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ServiceBreakdownChart data={data.serviceBreakdown} colors={colors} />
+                <ServiceBreakdownChart data={data.serviceBreakdown} colors={colors} currency={currency} />
               </CardContent>
             </Card>
           </div>
@@ -130,47 +167,45 @@ export default async function ReportsPage() {
               <CardTitle>Detalle por propiedad</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="-mx-6 overflow-x-auto px-6">
-                <table className="w-full min-w-2xl text-sm">
-                  <thead>
-                    <tr className="text-muted-foreground border-b text-left">
-                      <th scope="col" className="py-2 font-medium">Propiedad</th>
-                      <th scope="col" className="py-2 text-right font-medium">Ingresos</th>
-                      <th scope="col" className="py-2 text-right font-medium">Gastos</th>
-                      <th scope="col" className="py-2 text-right font-medium">Neto</th>
-                      <th scope="col" className="py-2 text-right font-medium">Margen</th>
-                      <th scope="col" className="w-40 py-2 pl-4 font-medium">Ocupación</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.byBuilding.map((building) => (
-                      <tr key={building.id} className="border-b last:border-0">
-                        <td className="py-2.5 font-medium">{building.name}</td>
-                        <td className="py-2.5 text-right tabular-nums">
-                          {money(building.income)}
-                        </td>
-                        <td className="py-2.5 text-right tabular-nums">
-                          {money(building.expenses)}
-                        </td>
-                        <td className="py-2.5 text-right font-medium tabular-nums">
-                          {money(building.net)}
-                        </td>
-                        <td className="py-2.5 text-right tabular-nums">
-                          {building.margin}%
-                        </td>
-                        <td className="py-2.5 pl-4">
-                          <div className="flex items-center gap-2">
-                            <Progress value={building.occupancy} className="flex-1" />
-                            <span className="text-muted-foreground w-9 text-right text-xs tabular-nums">
-                              {building.occupancy}%
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table className="min-w-2xl">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead scope="col">Propiedad</TableHead>
+                    <TableHead scope="col" className="text-right">Ingresos</TableHead>
+                    <TableHead scope="col" className="text-right">Gastos</TableHead>
+                    <TableHead scope="col" className="text-right">Neto</TableHead>
+                    <TableHead scope="col" className="text-right">Margen</TableHead>
+                    <TableHead scope="col" className="w-40 pl-4">Ocupación</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.byBuilding.map((building) => (
+                    <TableRow key={building.id}>
+                      <TableCell className="font-medium">{building.name}</TableCell>
+                      <TableCell className="text-right">
+                        <Amount value={building.income} currency={currency} className="font-normal" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Amount value={building.expenses} currency={currency} className="font-normal" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Amount value={building.net} currency={currency} />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {building.margin}%
+                      </TableCell>
+                      <TableCell className="pl-4">
+                        <div className="flex items-center gap-2">
+                          <Progress value={building.occupancy} className="flex-1" />
+                          <span className="text-muted-foreground w-9 text-right text-xs tabular-nums">
+                            {building.occupancy}%
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </div>

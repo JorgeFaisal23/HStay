@@ -3,9 +3,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth/session";
+import { requireOrgUser } from "@/lib/auth/session";
 import { getAssignableUnits } from "@/lib/queries/tenants";
 import { NewTenantForm } from "./new-tenant-form";
+import { canEmailLinks } from "@/server/auth/links";
+import { UserQuotaNote } from "@/components/shared/user-quota-note";
+import { userQuota } from "@/server/user-quota";
 
 export const metadata: Metadata = { title: "Nuevo inquilino" };
 
@@ -14,9 +17,9 @@ export default async function NewTenantPage({
 }: {
   searchParams: Promise<{ unidad?: string }>;
 }) {
-  const session = await requireUser(["OWNER", "ADMIN"]);
+  const { db } = await requireOrgUser(["OWNER", "ADMIN"]);
   const { unidad } = await searchParams;
-  const units = await getAssignableUnits(session.organizationId);
+  const [units, quota] = await Promise.all([getAssignableUnits(db), userQuota(db)]);
 
   return (
     <>
@@ -33,9 +36,11 @@ export default async function NewTenantPage({
         description="Se crea su perfil y su acceso al portal. Si ya sabes qué unidad ocupará, puedes registrar el contrato en el mismo paso."
       />
 
+      {quota.full ? <UserQuotaNote active={quota.active} max={quota.max} /> : null}
+
       <Card className="max-w-3xl">
         <CardContent>
-          <NewTenantForm units={units} defaultUnitId={unidad} />
+          <NewTenantForm units={units} defaultUnitId={unidad} canInvite={await canEmailLinks()} />
         </CardContent>
       </Card>
     </>

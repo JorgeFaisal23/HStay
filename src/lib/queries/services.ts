@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import type { OrgDb } from "@/lib/db/scoped";
+import { ACCOUNT_CURRENCY, accountCurrency, addMoney, totalByCurrency, type MoneyByCurrency } from "@/lib/currency";
 import { toNumber, shiftPeriod } from "@/lib/format";
 import { allocate } from "@/lib/services/allocation";
 import type { ServiceType } from "@/generated/prisma/enums";
@@ -20,16 +21,11 @@ export type ServiceCell = {
   includedInRent: boolean;
 };
 
-export async function getServicesBoard(
-  period: string,
-  organizationId?: string | null,
-) {
+export async function getServicesBoard(db: OrgDb, period: string) {
   const previousPeriod = shiftPeriod(period, -1);
-  const orgFilter = organizationId ? { organizationId } : undefined;
 
   const [buildings, previousCharges] = await Promise.all([
-    prisma.building.findMany({
-      where: orgFilter,
+    db.building.findMany({
       orderBy: { name: "asc" },
       include: {
         serviceAccounts: {
@@ -49,21 +45,9 @@ export async function getServicesBoard(
         },
       },
     }),
-    prisma.serviceCharge.findMany({
-      where: {
-        period: previousPeriod,
-        ...(organizationId
-          ? {
-              serviceAccount: {
-                OR: [
-                  { building: orgFilter },
-                  { unit: { building: orgFilter } },
-                ],
-              },
-            }
-          : {}),
-      },
-      select: { amount: true },
+    db.serviceCharge.findMany({
+      where: { period: previousPeriod },
+      select: { amount: true, serviceAccount: { select: ACCOUNT_CURRENCY } },
     }),
   ]);
 
@@ -76,7 +60,8 @@ export async function getServicesBoard(
   }
   const columns = SERVICE_TYPE_ORDER.filter((type) => usedTypes.has(type));
 
-  let grandTotal = 0;
+  // Cada propiedad suma en su moneda; el total general se lleva por moneda.
+  let grandTotal: MoneyByCurrency = {};
   let missingCount = 0;
   let totalAccounts = 0;
 
@@ -146,11 +131,12 @@ export async function getServicesBoard(
 
     const unitsTotal = units.reduce((sum, u) => sum + u.total, 0);
     const total = unitsTotal + buildingLevelTotal;
-    grandTotal += total;
+    grandTotal = addMoney(grandTotal, building.currency, total);
 
     return {
       id: building.id,
       name: building.name,
+      currency: building.currency,
       buildingAccounts,
       buildingLevelTotal,
       units,
@@ -159,9 +145,10 @@ export async function getServicesBoard(
     };
   });
 
-  const previousTotal = previousCharges.reduce(
-    (sum, c) => sum + toNumber(c.amount),
-    0,
+  const previousTotal = totalByCurrency(
+    previousCharges,
+    (c) => accountCurrency(c.serviceAccount),
+    (c) => toNumber(c.amount),
   );
 
   return {

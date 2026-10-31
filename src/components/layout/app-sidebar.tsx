@@ -8,15 +8,17 @@ import {
   CalendarCheck,
   CalendarRange,
   FileSignature,
+  KeyRound,
   LayoutDashboard,
+  ListChecks,
   Palette,
   Plug,
   Receipt,
   Sparkles,
   Users,
   Users2,
-  Workflow,
   BarChart3,
+  Wrench,
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,11 +36,7 @@ import { BrandLogo } from "@/components/shared/brand-logo";
 import { AppSignature } from "@/components/shared/app-signature";
 import { PremiumBadge } from "@/components/premium/premium-badge";
 import { canAccessPath } from "@/lib/permissions";
-import {
-  SHOW_AIRBNB_INTEGRATION,
-  SHOW_AUTOMATIONS,
-  SHOW_CONTRACTS,
-} from "@/lib/features";
+import { SHOW_AIRBNB_INTEGRATION } from "@/lib/features";
 import type { Role } from "@/lib/auth/jwt";
 import { UserMenu } from "./user-menu";
 
@@ -52,13 +50,18 @@ type NavItem = {
 };
 
 const MAIN_NAV: NavItem[] = [
-  { href: "/dashboard", label: "Inicio", icon: LayoutDashboard },
+  { href: "/hoy", label: "Hoy", icon: ListChecks },
+  { href: "/dashboard", label: "Resumen", icon: LayoutDashboard },
   { href: "/edificios", label: "Propiedades", icon: Building2 },
   { href: "/calendario", label: "Calendario", icon: CalendarRange },
   { href: "/reservas", label: "Reservas", icon: CalendarCheck },
+  { href: "/tareas", label: "Tareas", icon: Wrench },
   { href: "/servicios", label: "Servicios", icon: Receipt },
   { href: "/pagos", label: "Cobros", icon: Banknote },
   { href: "/inquilinos", label: "Inquilinos", icon: Users },
+  { href: "/propietarios", label: "Propietarios", icon: KeyRound },
+  { href: "/contratos", label: "Contratos", icon: FileSignature },
+  { href: "/equipo", label: "Equipo", icon: Users2 },
   {
     href: "/integraciones",
     label: "Integraciones",
@@ -69,21 +72,6 @@ const MAIN_NAV: NavItem[] = [
 
 const PREMIUM_NAV: NavItem[] = [
   { href: "/reportes", label: "Reportes", icon: BarChart3, premium: true },
-  {
-    href: "/automatizaciones",
-    label: "Automatizaciones",
-    icon: Workflow,
-    premium: true,
-    enabled: SHOW_AUTOMATIONS,
-  },
-  {
-    href: "/contratos",
-    label: "Contratos",
-    icon: FileSignature,
-    premium: true,
-    enabled: SHOW_CONTRACTS,
-  },
-  { href: "/equipo", label: "Equipo", icon: Users2, premium: true },
 ];
 
 export function AppSidebar({
@@ -149,8 +137,7 @@ export function AppSidebar({
             <SidebarGroupLabel>Premium</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {PREMIUM_NAV.filter((item) => item.enabled !== false).map(
-                  (item) => (
+                {PREMIUM_NAV.map((item) => (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       isActive={isActive(item.href)}

@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth/session";
+import { requireOrgUser } from "@/lib/auth/session";
 import { getPortalData } from "@/lib/queries/portal";
 import { SERVICE_TYPE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -16,8 +16,8 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = { title: "Servicios" };
 
 export default async function PortalServicesPage() {
-  const session = await requireUser(["TENANT"]);
-  const data = await getPortalData(session.sub, session.organizationId);
+  const { session, db } = await requireOrgUser(["TENANT"]);
+  const data = await getPortalData(db, session.sub);
 
   const services = data.lease?.services ?? [];
   const included = services.filter((s) => s.includedInRent);
@@ -85,7 +85,7 @@ function ServiceList({
             className={cn(
               "flex size-6 items-center justify-center rounded-full",
               included
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                ? "bg-success-soft text-success-foreground"
                 : "bg-muted text-muted-foreground",
             )}
             aria-hidden

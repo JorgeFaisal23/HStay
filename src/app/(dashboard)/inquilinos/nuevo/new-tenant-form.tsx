@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useFormAction } from "@/hooks/use-form-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +10,8 @@ import { Field, FormError, NativeSelect } from "@/components/shared/form-field";
 import { Separator } from "@/components/ui/separator";
 import { createTenant } from "@/server/actions/tenants";
 import { money } from "@/lib/format";
+import type { Currency } from "@/lib/currency";
+import { LeaseTermsFields } from "@/components/leases/lease-terms-fields";
 
 function Submit({ pending }: { pending: boolean }) {
   return (
@@ -20,22 +21,18 @@ function Submit({ pending }: { pending: boolean }) {
   );
 }
 
-/** Hoy en formato YYYY-MM-DD y la misma fecha dentro de N meses. */
-function isoToday(monthsAhead = 0) {
-  const date = new Date();
-  date.setMonth(date.getMonth() + monthsAhead);
-  return date.toISOString().slice(0, 10);
-}
-
 export function NewTenantForm({
   units,
   defaultUnitId,
+  canInvite = false,
 }: {
-  units: { id: string; code: string; buildingName: string; baseRent: number }[];
+  units: { id: string; code: string; buildingName: string; baseRent: number; currency: Currency }[];
   defaultUnitId?: string;
+  /** Hay correo configurado: sin contraseña temporal se le manda una invitación. */
+  canInvite?: boolean;
 }) {
   // onSubmit en vez de action: si hay un error, lo capturado no se borra.
-  const { onSubmit, pending, error } = useFormAction(createTenant);
+  const { onSubmit, pending, error } = useFormAction((formData) => createTenant({}, formData));
   const [unitId, setUnitId] = useState(defaultUnitId ?? "");
 
   const selectedUnit = units.find((u) => u.id === unitId);
@@ -51,14 +48,9 @@ export function NewTenantForm({
           <Field
             label="Correo electrónico"
             htmlFor="email"
-            hint="Con este correo entrará a su portal. Sin correo no tendrá acceso."
+            hint="Con este correo entrará a su portal. Sin correo se registra sin acceso; puedes agregarlo después."
           >
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="maria@ejemplo.com"
-            />
+            <Input id="email" name="email" type="email" placeholder="maria@ejemplo.com" />
           </Field>
         </div>
 
@@ -74,9 +66,19 @@ export function NewTenantForm({
         <Field
           label="Contraseña temporal"
           htmlFor="password"
-          hint="Si la dejas vacía se usa “demo1234”. El inquilino podrá cambiarla."
+          hint={
+            canInvite
+              ? "Déjala vacía para enviarle una invitación por correo. Si la escribes (mínimo 8 caracteres), entrégasela tú; al entrar se le pedirá cambiarla. Sin correo, déjala vacía."
+              : "Con correo, es obligatoria: mínimo 8 caracteres, entrégasela por un medio seguro y al entrar se le pedirá cambiarla. Sin correo, déjala vacía."
+          }
         >
-          <Input id="password" name="password" type="text" placeholder="demo1234" />
+          <Input
+            id="password"
+            name="password"
+            type="text"
+            autoComplete="new-password"
+            minLength={8}
+          />
         </Field>
 
         <Field label="Notas" htmlFor="notes">
@@ -94,13 +96,6 @@ export function NewTenantForm({
             Si ya sabes qué unidad ocupará, regístralo aquí y el contrato queda
             listo. También puedes hacerlo después.
           </p>
-          <p className="text-muted-foreground mt-1 text-sm text-pretty">
-            ¿Es una estancia corta (noches, semanas o unos meses)? Captúrala en{" "}
-            <Link href="/reservas/nueva" className="text-primary underline-offset-4 hover:underline">
-              Nueva reserva
-            </Link>
-            : una unidad puede tener varias reservas a futuro.
-          </p>
         </div>
 
         <Field label="Unidad" htmlFor="unitId">
@@ -113,77 +108,13 @@ export function NewTenantForm({
             <option value="">Sin asignar por ahora</option>
             {units.map((unit) => (
               <option key={unit.id} value={unit.id}>
-                {unit.buildingName} · {unit.code} — {money(unit.baseRent)}
+                {unit.buildingName} · {unit.code} — {money(unit.baseRent, unit.currency)}
               </option>
             ))}
           </NativeSelect>
         </Field>
 
-        {unitId ? (
-          <div className="space-y-4 rounded-lg border p-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Inicio del contrato" htmlFor="startDate" required>
-                <Input
-                  id="startDate"
-                  name="startDate"
-                  type="date"
-                  required
-                  defaultValue={isoToday()}
-                />
-              </Field>
-              <Field label="Vencimiento" htmlFor="endDate" required>
-                <Input
-                  id="endDate"
-                  name="endDate"
-                  type="date"
-                  required
-                  defaultValue={isoToday(12)}
-                />
-              </Field>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Renta mensual" htmlFor="rentAmount" required>
-                <Input
-                  id="rentAmount"
-                  name="rentAmount"
-                  type="number"
-                  min={0}
-                  step={50}
-                  required
-                  defaultValue={selectedUnit?.baseRent}
-                  className="tabular-nums"
-                />
-              </Field>
-              <Field label="Depósito" htmlFor="depositAmount">
-                <Input
-                  id="depositAmount"
-                  name="depositAmount"
-                  type="number"
-                  min={0}
-                  step={50}
-                  defaultValue={selectedUnit?.baseRent}
-                  className="tabular-nums"
-                />
-              </Field>
-              <Field
-                label="Día de pago"
-                htmlFor="paymentDay"
-                hint="Del 1 al 31. Si el mes es más corto, se cobra el último día."
-              >
-                <Input
-                  id="paymentDay"
-                  name="paymentDay"
-                  type="number"
-                  min={1}
-                  max={31}
-                  defaultValue={1}
-                  className="tabular-nums"
-                />
-              </Field>
-            </div>
-          </div>
-        ) : null}
+        {unitId ? <LeaseTermsFields key={unitId} baseRent={selectedUnit?.baseRent} /> : null}
       </div>
 
       <FormError message={error} />

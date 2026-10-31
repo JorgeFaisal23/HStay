@@ -1,21 +1,23 @@
 import type { Metadata } from "next";
 import { Building2, MapPin, Plus } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
+import { Amount } from "@/components/shared/amount";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ButtonLink } from "@/components/shared/button-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { getBuildingsOverview } from "@/lib/queries/properties";
-import { requireUser } from "@/lib/auth/session";
+import { requireOrgUser } from "@/lib/auth/session";
+import { requireCurrentOrg } from "@/lib/org";
+import { PlanUsage } from "@/components/shared/plan-usage";
 import { canEdit } from "@/lib/permissions";
-import { money, moneyCompact } from "@/lib/format";
 import { NewBuildingDialog } from "./new-building-dialog";
 
 export const metadata: Metadata = { title: "Propiedades" };
 
 export default async function BuildingsPage() {
-  const session = await requireUser(["OWNER", "ADMIN"]);
-  const buildings = await getBuildingsOverview(session.organizationId);
+  const { session, db } = await requireOrgUser(["OWNER", "ADMIN"]);
+  const [buildings, org] = await Promise.all([getBuildingsOverview(db), requireCurrentOrg()]);
   const editable = canEdit(session.role);
 
   const totalUnits = buildings.reduce((sum, b) => sum + b.totalUnits, 0);
@@ -32,6 +34,10 @@ export default async function BuildingsPage() {
         }
         action={editable ? <NewBuildingDialog /> : null}
       />
+
+      {buildings.length > 0 ? (
+        <PlanUsage plan={org.plan} buildings={buildings.length} units={totalUnits} />
+      ) : null}
 
       {buildings.length === 0 ? (
         <EmptyState
@@ -75,11 +81,7 @@ export default async function BuildingsPage() {
                       Renta mensual
                     </dt>
                     <dd className="font-medium tabular-nums">
-                      {building.monthlyRentUSD > 0 && building.monthlyRentMXN > 0
-                        ? `${moneyCompact(building.monthlyRentMXN, "MXN")} + ${moneyCompact(building.monthlyRentUSD, "USD")}`
-                        : building.monthlyRentUSD > 0
-                          ? moneyCompact(building.monthlyRentUSD, "USD")
-                          : moneyCompact(building.monthlyRentMXN, "MXN")}
+                      <Amount value={building.monthlyRent} currency={building.currency} compact className="font-medium" />
                     </dd>
                   </div>
                   <div>
@@ -89,7 +91,7 @@ export default async function BuildingsPage() {
                     <dd className="font-medium tabular-nums">
                       {building.servicesThisMonth === 0
                         ? "Sin capturar"
-                        : money(building.servicesThisMonth)}
+                        : <Amount value={building.servicesThisMonth} currency={building.currency} className="font-medium" />}
                     </dd>
                   </div>
                 </dl>

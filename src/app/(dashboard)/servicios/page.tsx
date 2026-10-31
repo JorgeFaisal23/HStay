@@ -1,8 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Receipt, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
+import { Amount, Amounts } from "@/components/shared/amount";
+import { anyNegative, hasMoney, moneyEntries, subtractMoney } from "@/lib/currency";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -12,10 +23,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth/session";
+import { requireOrgUser } from "@/lib/auth/session";
 import { canEdit } from "@/lib/permissions";
 import { getServicesBoard } from "@/lib/queries/services";
-import { money, moneyCompact, periodKey, periodLabel, recentPeriods } from "@/lib/format";
+import { moneyCompact, moneyTotals, periodKey, periodLabel, recentPeriods } from "@/lib/format";
 import { SERVICE_TYPE_LABELS } from "@/lib/labels";
 import { AmountInput } from "./amount-input";
 import { PeriodToolbar } from "./period-toolbar";
@@ -27,17 +38,22 @@ export default async function ServicesPage({
 }: {
   searchParams: Promise<{ mes?: string }>;
 }) {
-  const session = await requireUser(["OWNER", "ADMIN"]);
+  const { session, db } = await requireOrgUser(["OWNER", "ADMIN"]);
   const { mes } = await searchParams;
 
   const periods = recentPeriods(12);
   const period = mes && periods.includes(mes) ? mes : periodKey(new Date());
 
-  const board = await getServicesBoard(period, session.organizationId);
+  const board = await getServicesBoard(db, period);
   const editable = canEdit(session.role);
 
-  const difference = board.grandTotal - board.previousTotal;
-  const hasPrevious = board.previousTotal > 0;
+  // Diferencia contra el mes pasado, moneda por moneda.
+  const difference = subtractMoney(board.grandTotal, board.previousTotal);
+  const hasPrevious = hasMoney(board.previousTotal);
+  const differenceText = moneyEntries(difference)
+    .map(([c, value]) => `${value >= 0 ? "+" : "−"}${moneyCompact(Math.abs(value), c)}`)
+    .join(" · ");
+  const growing = !anyNegative(difference);
   const capturedCount = board.totalAccounts - board.missingCount;
 
   return (
@@ -59,7 +75,7 @@ export default async function ServicesPage({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard
           label={`Total consolidado · ${periodLabel(period)}`}
-          value={moneyCompact(board.grandTotal)}
+          value={<Amounts value={board.grandTotal} compact />}
           hint={`${board.buildings.length} ${board.buildings.length === 1 ? "propiedad" : "propiedades"}`}
           icon={Wallet}
           tone="brand"
@@ -68,15 +84,15 @@ export default async function ServicesPage({
           label={`Comparado con ${periodLabel(board.previousPeriod).toLowerCase()}`}
           value={
             hasPrevious
-              ? `${difference >= 0 ? "+" : "−"}${moneyCompact(Math.abs(difference))}`
+              ? differenceText
               : "Sin referencia"
           }
           hint={
             hasPrevious
-              ? `El mes pasado fueron ${moneyCompact(board.previousTotal)}`
+              ? `El mes pasado fueron ${moneyTotals(board.previousTotal, { compact: true })}`
               : "No hay montos capturados el mes anterior"
           }
-          icon={difference >= 0 ? TrendingUp : TrendingDown}
+          icon={growing ? TrendingUp : TrendingDown}
         />
         <StatCard
           label="Avance de captura"
@@ -121,8 +137,8 @@ export default async function ServicesPage({
                   <p className="text-muted-foreground text-xs">
                     Total de la propiedad
                   </p>
-                  <p className="text-xl font-semibold tabular-nums">
-                    {money(building.total)}
+                  <p className="text-xl">
+                    <Amount value={building.total} currency={building.currency} />
                   </p>
                 </div>
               </div>
@@ -136,102 +152,81 @@ export default async function ServicesPage({
                   description="Agrega cuartos o departamentos para capturar sus servicios."
                 />
               ) : (
-                <div className="-mx-6 overflow-x-auto px-6">
-                  <table className="w-full min-w-[36rem] border-collapse text-sm">
-                    <caption className="sr-only">
-                      Montos de servicios por unidad en {periodLabel(period)}
-                    </caption>
-                    <thead>
-                      <tr className="border-b">
-                        <th
-                          scope="col"
-                          className="text-muted-foreground py-2 pr-3 text-left font-medium"
-                        >
-                          Unidad
-                        </th>
-                        {board.columns.map((type) => (
-                          <th
-                            key={type}
-                            scope="col"
-                            className="text-muted-foreground px-2 py-2 text-right font-medium"
-                          >
-                            {SERVICE_TYPE_LABELS[type]}
-                          </th>
-                        ))}
-                        <th
-                          scope="col"
-                          className="text-muted-foreground py-2 pl-3 text-right font-medium"
-                        >
-                          Subtotal
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {building.units.map((unit) => (
-                        <tr key={unit.id} className="border-b last:border-0">
-                          <th
-                            scope="row"
-                            className="py-1.5 pr-3 text-left font-normal"
-                          >
-                            <Link
-                              href={`/unidades/${unit.id}`}
-                              className="hover:underline"
-                            >
-                              <span className="font-medium">{unit.code}</span>
-                            </Link>
-                          </th>
-                          {board.columns.map((type) => {
-                            const cell = unit.cells[type];
-                            return (
-                              <td key={type} className="px-1 py-1.5">
-                                {cell ? (
-                                  <AmountInput
-                                    accountId={cell.accountId}
-                                    period={period}
-                                    initialAmount={cell.amount}
-                                    label={`${SERVICE_TYPE_LABELS[type]} de la unidad ${unit.code}`}
-                                    editable={editable}
-                                  />
-                                ) : (
-                                  <span
-                                    className="text-muted-foreground/40 block text-right"
-                                    title="Esta unidad no tiene contratado este servicio"
-                                  >
-                                    ·
-                                  </span>
-                                )}
-                              </td>
-                            );
-                          })}
-                          <td className="py-1.5 pl-3 text-right font-medium tabular-nums">
-                            {unit.total === 0 ? (
-                              <span className="text-muted-foreground">—</span>
-                            ) : (
-                              money(unit.total)
-                            )}
-                          </td>
-                        </tr>
+                <Table className="min-w-xl">
+                  <caption className="sr-only">
+                    Montos de servicios por unidad en {periodLabel(period)}
+                  </caption>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead scope="col" className="pr-3">
+                        Unidad
+                      </TableHead>
+                      {board.columns.map((type) => (
+                        <TableHead key={type} scope="col" className="text-right">
+                          {SERVICE_TYPE_LABELS[type]}
+                        </TableHead>
                       ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2">
-                        <th
-                          scope="row"
-                          className="py-2 pr-3 text-left text-sm font-medium"
-                        >
-                          Subtotal por unidades
+                      <TableHead scope="col" className="pl-3 text-right">
+                        Subtotal
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {building.units.map((unit) => (
+                      <TableRow key={unit.id}>
+                        <th scope="row" className="py-1.5 pr-3 pl-2 text-left font-normal">
+                          <Link
+                            href={`/unidades/${unit.id}`}
+                            className="hover:underline"
+                          >
+                            <span className="font-medium">{unit.code}</span>
+                          </Link>
                         </th>
-                        <td
-                          colSpan={board.columns.length}
-                          className="py-2"
-                        />
-                        <td className="py-2 pl-3 text-right font-semibold tabular-nums">
-                          {money(building.unitsTotal)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                        {board.columns.map((type) => {
+                          const cell = unit.cells[type];
+                          return (
+                            <TableCell key={type} className="px-1 py-1.5">
+                              {cell ? (
+                                <AmountInput
+                                  accountId={cell.accountId}
+                                  period={period}
+                                  initialAmount={cell.amount}
+                                  label={`${SERVICE_TYPE_LABELS[type]} de la unidad ${unit.code}`}
+                                  editable={editable}
+                                />
+                              ) : (
+                                <span
+                                  className="text-muted-foreground/40 block text-right"
+                                  title="Esta unidad no tiene contratado este servicio"
+                                >
+                                  ·
+                                </span>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="py-1.5 pl-3 text-right">
+                          {unit.total === 0 ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <Amount value={unit.total} currency={building.currency} className="font-medium" />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  <TableFooter className="bg-transparent">
+                    <TableRow className="hover:bg-transparent">
+                      <th scope="row" className="py-2 pr-3 pl-2 text-left font-medium">
+                        Subtotal por unidades
+                      </th>
+                      <TableCell colSpan={board.columns.length} />
+                      <TableCell className="pl-3 text-right">
+                        <Amount value={building.unitsTotal} currency={building.currency} />
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
               )}
 
               {/* ------------------------------- recibos de toda la propiedad */}
@@ -279,7 +274,7 @@ export default async function ServicesPage({
                             <summary className="text-muted-foreground hover:text-foreground cursor-pointer list-none text-xs">
                               Ver reparto entre {account.allocation.length}{" "}
                               unidades
-                              <span className="ml-1 inline-block transition group-open:rotate-90">
+                              <span className="ml-1 inline-block transition-transform group-open:rotate-90">
                                 ›
                               </span>
                             </summary>
@@ -290,7 +285,7 @@ export default async function ServicesPage({
                                   className="flex justify-between gap-2 tabular-nums"
                                 >
                                   <span>{share.label}</span>
-                                  <span>{money(share.amount)}</span>
+                                  <Amount value={share.amount} currency={building.currency} className="font-normal" />
                                 </li>
                               ))}
                             </ul>
@@ -329,8 +324,8 @@ export default async function ServicesPage({
                 servicios por unidad.
               </p>
             </div>
-            <p className="text-3xl font-semibold tabular-nums">
-              {money(board.grandTotal)}
+            <p className="text-3xl">
+              <Amounts value={board.grandTotal} />
             </p>
           </CardContent>
         </Card>

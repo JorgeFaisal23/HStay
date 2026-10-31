@@ -1,23 +1,54 @@
-# Blueprint de Render. En el panel: New > Blueprint, apunta al repo y Render
-# lee este archivo. Las tres variables marcadas `sync: false` se piden al
-# crear el servicio (no se guardan aquí: `.env` está en .gitignore).
+# Blueprint de Render para la DEMO (producción real: VPS con Docker, ver README).
+# En el panel: New > Blueprint, apunta al repo y a la rama `develop`.
+#
+# La app se construye con el mismo Dockerfile del VPS. Render pasa las
+# variables de entorno como argumentos de build, así que NEXT_PUBLIC_APP_* se
+# incrustan al compilar. Las migraciones se aplican al arrancar el contenedor
+# (docker-entrypoint.sh).
+#
+# La base gratuita de Render caduca a los 30 días: hay que recrearla y volver a
+# correr el seed (README, "Demo en Render").
+databases:
+  - name: apprentas-demo-db
+    plan: free
+    region: ohio
+    databaseName: apprentas
+    user: apprentas
+
 services:
   - type: web
-    name: carcar
-    runtime: node
+    name: apprentas-demo
+    runtime: docker
     plan: free
-    # Neon vive en us-east-2, así que Ohio deja la base al lado del servidor.
     region: ohio
-    buildCommand: npm ci && npm run build
-    startCommand: npm run start
+    branch: develop
+    dockerfilePath: ./Dockerfile
     envVars:
-      - key: NODE_VERSION
-        value: "24"
-      # Conexión con pooler: la usa la app en cada request.
+      # Conexión interna a la base de la demo.
       - key: DATABASE_URL
-        sync: false
-      # Conexión directa: solo la usan `db push` y `db seed`.
+        fromDatabase:
+          name: apprentas-demo-db
+          property: connectionString
       - key: DIRECT_URL
-        sync: false
+        fromDatabase:
+          name: apprentas-demo-db
+          property: connectionString
       - key: AUTH_SECRET
+        generateValue: true
+      # Identidad del producto: se incrusta en el build; cambiarla requiere
+      # volver a desplegar.
+      - key: NEXT_PUBLIC_APP_NAME
+        value: HStay
+      - key: NEXT_PUBLIC_APP_TAGLINE
+        value: Administración de rentas
+      - key: NEXT_PUBLIC_APP_COLOR
+        value: "#12263F"
+      # URL pública (https://<servicio>.onrender.com). Se conoce al crear el
+      # servicio; Render la pide en el primer despliegue.
+      - key: NEXT_PUBLIC_APP_URL
         sync: false
+      - key: APP_URL
+        sync: false
+      # Demo: la pantalla de acceso ofrece las cuentas del seed.
+      - key: DEMO_MODE
+        value: "true"

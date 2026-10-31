@@ -1,20 +1,23 @@
-Dockerfile
-.dockerignore
+# Lo que no entra al contexto de build de Docker.
 node_modules
 .next
 .git
-.gitignore
-.env*
-!.env.example
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-README.md
-*.md
+.claude
+.windsurf
+.agents
 .vscode
 .idea
-*.xlsx
-*.docx
-scripts/*.txt
-scripts/*.ps1
+docs/internos
+src/generated
+coverage
+*.log
+tsconfig.tsbuildinfo
+
+# Secretos y configuración local: en el contenedor las variables llegan por
+# el entorno (env_file de docker compose).
+.env
+.env.*
+!.env.example
+
+# Llaves SSH del VPS
+Llaves

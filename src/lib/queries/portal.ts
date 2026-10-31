@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import type { OrgDb } from "@/lib/db/scoped";
 import { toNumber, daysBetween } from "@/lib/format";
 
 /**
@@ -7,11 +7,11 @@ import { toNumber, daysBetween } from "@/lib/format";
  * Todo se filtra por el id de la sesión en el servidor: el portal nunca recibe
  * información de otras unidades ni de otros inquilinos.
  */
-export async function getPortalData(userId: string, organizationId?: string | null) {
+export async function getPortalData(db: OrgDb, userId: string) {
   const now = new Date();
 
-  const [lease, booking, organization] = await Promise.all([
-    prisma.lease.findFirst({
+  const [lease, booking, organization, rentCharges] = await Promise.all([
+    db.lease.findFirst({
       where: { tenantId: userId, status: "ACTIVE" },
       select: {
         id: true,
@@ -29,7 +29,7 @@ export async function getPortalData(userId: string, organizationId?: string | nu
             bathrooms: true,
             sizeM2: true,
             description: true,
-            building: { select: { name: true, address: true, city: true } },
+            building: { select: { name: true, address: true, city: true, currency: true } },
             serviceAccounts: {
               select: {
                 type: true,
@@ -40,25 +40,10 @@ export async function getPortalData(userId: string, organizationId?: string | nu
             },
           },
         },
-        rentCharges: {
-          orderBy: { period: "desc" },
-          select: {
-            id: true,
-            period: true,
-            amount: true,
-            paidAmount: true,
-            status: true,
-            dueDate: true,
-            paidAt: true,
-            method: true,
-            reference: true,
-            receiptUrl: true,
-          },
-        },
       },
     }),
     // Un huésped de estancia corta ve su reserva en vez de un contrato.
-    prisma.booking.findFirst({
+    db.booking.findFirst({
       where: {
         guestUserId: userId,
         status: "CONFIRMED",
@@ -76,23 +61,41 @@ export async function getPortalData(userId: string, organizationId?: string | nu
         unit: {
           select: {
             code: true,
-            building: { select: { name: true, address: true } },
+            building: { select: { name: true, address: true, currency: true } },
           },
         },
       },
     }),
-    organizationId
-      ? prisma.organization.findUnique({
-          where: { id: organizationId },
-          select: { brandName: true, contactEmail: true, contactPhone: true },
-        })
-      : prisma.organization.findFirst({
-          select: { brandName: true, contactEmail: true, contactPhone: true },
-        }),
+    db.organization.findFirst({
+      select: { brandName: true, contactEmail: true, contactPhone: true },
+    }),
+    // Cargos de todos sus contratos: si un contrato terminó con saldo
+    // pendiente, el inquilino lo sigue viendo.
+    db.rentCharge.findMany({
+      where: { lease: { tenantId: userId } },
+      orderBy: { period: "desc" },
+      select: {
+        id: true,
+        period: true,
+        amount: true,
+        paidAmount: true,
+        status: true,
+        dueDate: true,
+        paidAt: true,
+        method: true,
+        reference: true,
+        receiptUrl: true,
+        // El último comprobante que envió: si está en revisión o si lo rechazaron.
+        proofs: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { status: true, amount: true, rejectionReason: true, createdAt: true },
+        },
+      },
+    }),
   ]);
 
-  const charges =
-    lease?.rentCharges.map((c) => ({
+  const charges = rentCharges.map((c) => ({
       id: c.id,
       period: c.period,
       amount: toNumber(c.amount),
@@ -103,7 +106,15 @@ export async function getPortalData(userId: string, organizationId?: string | nu
       method: c.method,
       reference: c.reference,
       receiptUrl: c.receiptUrl,
-    })) ?? [];
+      lastProof: c.proofs[0]
+        ? {
+            status: c.proofs[0].status,
+            amount: toNumber(c.proofs[0].amount),
+            rejectionReason: c.proofs[0].rejectionReason,
+            createdAt: c.proofs[0].createdAt,
+          }
+        : null,
+    }));
 
   const nextCharge =
     charges
@@ -155,6 +166,8 @@ export async function getPortalData(userId: string, organizationId?: string | nu
           buildingAddress: booking.unit.building.address,
         }
       : null,
+    /** Moneda de su contrato o estancia (la de la propiedad). */
+    currency: lease?.unit.building.currency ?? booking?.unit.building.currency ?? "MXN",
     charges,
     nextCharge,
     balance: charges

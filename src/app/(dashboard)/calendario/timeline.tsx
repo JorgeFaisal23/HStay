@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { BOOKING_SOURCE_CLASSES, LEASE_BAR_CLASS } from "@/lib/labels";
 import type { CalendarBar, CalendarBarKind } from "@/lib/queries/calendar";
 
 /**
@@ -11,10 +12,8 @@ import type { CalendarBar, CalendarBarKind } from "@/lib/queries/calendar";
  */
 
 const BAR_STYLES: Record<CalendarBarKind, string> = {
-  LEASE: "bg-sky-600 text-white",
-  AIRBNB: "bg-rose-500 text-white",
-  DIRECT: "bg-emerald-600 text-white",
-  MANUAL: "bg-slate-500 text-white",
+  LEASE: LEASE_BAR_CLASS,
+  ...BOOKING_SOURCE_CLASSES,
 };
 
 const WEEKDAY = ["D", "L", "M", "M", "J", "V", "S"];
@@ -31,13 +30,13 @@ export function Timeline({
   year,
   month,
   totalDays,
-  linkable = true,
+  linkable = false,
 }: {
   rows: TimelineRow[];
   year: number;
   month: number;
   totalDays: number;
-  /** Solo quien puede editar abre la reserva o el inquilino al hacer clic. */
+  /** Quien puede editar abre la reserva o el inquilino al hacer clic en la barra. */
   linkable?: boolean;
 }) {
   const days = Array.from({ length: totalDays }, (_, i) => i + 1);
@@ -63,7 +62,7 @@ export function Timeline({
       <div className="min-w-3xl">
         {/* ------------------------------------------------ encabezado */}
         <div className="flex border-b">
-          <div className="bg-background sticky left-0 z-10 w-28 shrink-0 py-2 pr-3 text-xs font-medium text-muted-foreground">
+          <div className="bg-popover sticky left-0 z-10 w-28 shrink-0 py-2 pr-3 text-xs font-medium text-muted-foreground">
             Unidad
           </div>
           <div className="grid flex-1" style={gridStyle}>
@@ -74,7 +73,7 @@ export function Timeline({
                 <div
                   key={day}
                   className={cn(
-                    "py-1 text-center text-[10px] leading-tight",
+                    "py-1 text-center text-2xs leading-tight",
                     isWeekend ? "text-muted-foreground/70" : "text-muted-foreground",
                     day === todayDay && "text-primary font-semibold",
                   )}
@@ -99,7 +98,7 @@ export function Timeline({
 
             {group.rows.map((row) => (
               <div key={row.unitId} className="hover:bg-accent/40 flex border-b">
-                <div className="bg-background sticky left-0 z-10 w-28 shrink-0 py-1.5 pr-3">
+                <div className="bg-popover sticky left-0 z-10 w-28 shrink-0 py-1.5 pr-3">
                   <Link
                     href={`/unidades/${row.unitId}`}
                     className="text-sm font-medium hover:underline"
@@ -143,8 +142,10 @@ export function Timeline({
                         href={linkable ? bar.href : undefined}
                         title={`${bar.label} — ${bar.detail}`}
                         className={cn(
-                          "flex h-6 items-center overflow-hidden rounded px-1.5 text-[11px] font-medium transition hover:opacity-85 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                          "flex h-6 items-center overflow-hidden rounded-sm px-1.5 text-2xs font-medium",
                           BAR_STYLES[bar.kind],
+                          linkable &&
+                            "transition-colors hover:brightness-110 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                           bar.continuesBefore && "rounded-l-none",
                           bar.continuesAfter && "rounded-r-none",
                         )}
@@ -170,12 +171,24 @@ export function Timeline({
 /** Barra como enlace si hay a dónde ir; si no, un bloque sin interacción. */
 function BarTag({
   href,
-  ...props
-}: { href?: string } & React.ComponentProps<"div">) {
-  if (href) {
-    return <Link href={href} {...(props as React.ComponentProps<"a">)} />;
-  }
-  return <div {...props} />;
+  title,
+  className,
+  children,
+}: {
+  href?: string;
+  title: string;
+  className: string;
+  children: React.ReactNode;
+}) {
+  return href ? (
+    <Link href={href} title={title} className={className}>
+      {children}
+    </Link>
+  ) : (
+    <div title={title} className={className}>
+      {children}
+    </div>
+  );
 }
 
 export function TimelineLegend() {

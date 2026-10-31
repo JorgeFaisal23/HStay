@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ButtonLink } from "@/components/shared/button-link";
+import { Amount } from "@/components/shared/amount";
 import {
   Card,
   CardContent,
@@ -29,12 +30,13 @@ import {
   getBuildingsForSelect,
   getUnitDetail,
 } from "@/lib/queries/properties";
-import { getSession, requireUser } from "@/lib/auth/session";
+import { requireOrgUser } from "@/lib/auth/session";
 import { canEdit } from "@/lib/permissions";
 import { SHOW_AIRBNB_INTEGRATION } from "@/lib/features";
 import {
   daysBetween,
   deadlineLabel,
+  inputDate,
   longDate,
   money,
   periodLabel,
@@ -50,18 +52,22 @@ import {
   UNIT_STATUS_TONES,
   UNIT_TYPE_LABELS,
 } from "@/lib/labels";
+import { ConfirmDelete } from "@/components/shared/confirm-delete";
+import { ServiceAccountCard } from "@/components/services/service-account-card";
+import { AddServiceDialog } from "@/components/services/add-service-dialog";
+import { EditBookingDialog, NewBookingDialog } from "@/components/bookings/new-booking-dialog";
+import { CancelBookingButton } from "@/components/bookings/cancel-booking-button";
+import { deleteUnit } from "@/server/actions/properties";
 import { EditUnitDialog } from "./edit-unit-dialog";
-import { ServiceAccountCard } from "./service-account-card";
-import { AddServiceDialog } from "./add-service-dialog";
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const session = await getSession();
+  const { db } = await requireOrgUser(["OWNER", "ADMIN"]);
   const { id } = await params;
-  const unit = await getUnitDetail(id, session?.organizationId);
+  const unit = await getUnitDetail(db, id);
   return { title: unit ? `Unidad ${unit.code}` : "Unidad" };
 }
 
@@ -70,11 +76,11 @@ export default async function UnitPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireUser(["OWNER", "ADMIN"]);
+  const { session, db } = await requireOrgUser(["OWNER", "ADMIN"]);
   const { id } = await params;
   const [unit, buildings] = await Promise.all([
-    getUnitDetail(id, session.organizationId),
-    getBuildingsForSelect(session.organizationId),
+    getUnitDetail(db, id),
+    getBuildingsForSelect(db),
   ]);
 
   if (!unit) notFound();
@@ -96,29 +102,42 @@ export default async function UnitPage({
 
       <PageHeader
         title={`Unidad ${unit.code}`}
-        description={`${UNIT_TYPE_LABELS[unit.type]} en ${unit.building.name} · ${money(unit.baseRent, unit.currency)}${isShortTerm ? " por noche" : " al mes"}.`}
+        description={`${UNIT_TYPE_LABELS[unit.type]} en ${unit.building.name} · ${
+          isShortTerm && unit.rates.nightly !== null
+            ? `${money(unit.rates.nightly, unit.currency)} por noche`
+            : `${money(unit.baseRent, unit.currency)} al mes`
+        }.`}
         action={
           editable ? (
-            <EditUnitDialog
-              unitId={unit.id}
-              buildings={buildings}
-              defaults={{
-                buildingId: unit.building.id,
-                code: unit.code,
-                name: unit.name,
-                type: unit.type,
-                status: unit.status,
-                currency: unit.currency,
-                floor: unit.floor,
-                bedrooms: unit.bedrooms,
-                bathrooms: unit.bathrooms,
-                sizeM2: unit.sizeM2,
-                baseRent: unit.baseRent,
-                nightlyPrice: unit.nightlyPrice,
-                weeklyPrice: unit.weeklyPrice,
-                description: unit.description,
-              }}
-            />
+            <div className="flex flex-wrap gap-2">
+              <ConfirmDelete
+                label="Eliminar"
+                title={`¿Eliminar la unidad ${unit.code}?`}
+                description="Se borra la unidad con sus servicios. Solo es posible si nunca tuvo contratos, reservas ni servicios capturados."
+                confirmLabel="Eliminar unidad"
+                action={deleteUnit.bind(null, unit.id)}
+              />
+              <EditUnitDialog
+                unitId={unit.id}
+                buildings={buildings}
+                defaults={{
+                  buildingId: unit.building.id,
+                  code: unit.code,
+                  name: unit.name,
+                  type: unit.type,
+                  status: unit.status,
+                  floor: unit.floor,
+                  bedrooms: unit.bedrooms,
+                  bathrooms: unit.bathrooms,
+                  sizeM2: unit.sizeM2,
+                  baseRent: unit.baseRent,
+                  nightlyRate: unit.rates.nightly,
+                  weeklyRate: unit.rates.weekly,
+                  monthlyRate: unit.rates.monthly,
+                  description: unit.description,
+                }}
+              />
+            </div>
           ) : null
         }
       />
@@ -171,24 +190,32 @@ export default async function UnitPage({
                 </div>
               ) : null}
 
-              <div className="bg-muted/50 rounded-lg p-4">
-                <p className="text-muted-foreground text-xs">
-                  {isShortTerm ? "Tarifa por noche" : "Renta mensual"} ({unit.currency})
-                </p>
-                <p className="mt-0.5 text-2xl font-semibold tabular-nums">
-                  {money(unit.baseRent, unit.currency)}
-                </p>
-                {unit.nightlyPrice ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Tarifa por noche: <span className="font-medium text-foreground">{money(unit.nightlyPrice, unit.currency)}</span>
-                  </p>
-                ) : null}
-                {unit.weeklyPrice ? (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Tarifa semanal: <span className="font-medium text-foreground">{money(unit.weeklyPrice, unit.currency)}</span>
-                  </p>
-                ) : null}
-              </div>
+              <dl className="bg-muted/50 grid grid-cols-2 gap-3 rounded-lg p-4 sm:grid-cols-4">
+                <div>
+                  <dt className="text-muted-foreground text-xs">Renta mensual</dt>
+                  <dd className="mt-0.5 text-lg">
+                    <Amount value={unit.baseRent} currency={unit.currency} />
+                  </dd>
+                </div>
+                {(
+                  [
+                    ["Por noche", unit.rates.nightly],
+                    ["Por semana", unit.rates.weekly],
+                    ["Por mes (estancia)", unit.rates.monthly],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-muted-foreground text-xs">{label}</dt>
+                    <dd className="mt-0.5 text-lg">
+                      {value === null ? (
+                        <span className="text-muted-foreground text-sm">Sin tarifa</span>
+                      ) : (
+                        <Amount value={value} currency={unit.currency} />
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </CardContent>
           </Card>
 
@@ -234,7 +261,7 @@ export default async function UnitPage({
                 </div>
                 {editable ? (
                   <AddServiceDialog
-                    unitId={unit.id}
+                    target={{ scope: "UNIT", unitId: unit.id }}
                     existingTypes={unit.serviceAccounts.map((a) => a.type)}
                   />
                 ) : null}
@@ -308,17 +335,27 @@ export default async function UnitPage({
           {isShortTerm ? (
             <Card>
               <CardHeader>
-                <CardTitle>Reservas próximas</CardTitle>
-                <CardDescription>
-                  Estancias confirmadas para esta unidad.
-                </CardDescription>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <CardTitle>Reservas próximas</CardTitle>
+                    <CardDescription>
+                      Estancias confirmadas para esta unidad.
+                    </CardDescription>
+                  </div>
+                  {editable ? (
+                    <NewBookingDialog
+                      unitId={unit.id}
+                      units={[{ id: unit.id, label: unit.code, rates: unit.rates, currency: unit.currency }]}
+                    />
+                  ) : null}
+                </div>
               </CardHeader>
               <CardContent>
                 {unit.bookings.length === 0 ? (
                   <EmptyState
                     icon={CalendarDays}
                     title="Sin reservas próximas"
-                    description="Cuando lleguen reservas nuevas aparecerán aquí y en el calendario global."
+                    description="Las reservas que registres o que lleguen de Airbnb aparecerán aquí y en el calendario global."
                   />
                 ) : (
                   <ul className="divide-y">
@@ -337,14 +374,40 @@ export default async function UnitPage({
                             {booking.guests === 1 ? "huésped" : "huéspedes"}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm tabular-nums">
-                            {shortDate(booking.checkIn)} →{" "}
-                            {shortDate(booking.checkOut)}
-                          </p>
-                          <p className="text-muted-foreground text-xs tabular-nums">
-                            {money(booking.totalAmount, unit.currency)}
-                          </p>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className="text-sm tabular-nums">
+                              {shortDate(booking.checkIn)} →{" "}
+                              {shortDate(booking.checkOut)}
+                            </p>
+                            <p className="text-muted-foreground text-xs">
+                              <Amount value={booking.totalAmount} currency={unit.currency} className="font-normal" />
+                            </p>
+                          </div>
+                          {editable && booking.source !== "AIRBNB" ? (
+                            <>
+                              <EditBookingDialog
+                                units={[{ id: unit.id, label: unit.code, rates: unit.rates, currency: unit.currency }]}
+                                booking={{
+                                  id: booking.id,
+                                  unitId: unit.id,
+                                  source: booking.source === "DIRECT" ? "DIRECT" : "MANUAL",
+                                  guestName: booking.guestName,
+                                  guestEmail: booking.guestEmail,
+                                  guestPhone: booking.guestPhone,
+                                  checkIn: inputDate(booking.checkIn),
+                                  checkOut: inputDate(booking.checkOut),
+                                  guests: booking.guests,
+                                  totalAmount: booking.totalAmount,
+                                  notes: booking.notes,
+                                }}
+                              />
+                              <CancelBookingButton
+                                bookingId={booking.id}
+                                guestName={booking.guestName}
+                              />
+                            </>
+                          ) : null}
                         </div>
                       </li>
                     ))}
@@ -405,10 +468,15 @@ export default async function UnitPage({
                   description="Asigna un inquilino para registrar la vigencia, la renta y empezar a generar los cobros mensuales."
                   actions={
                     editable ? (
-                      <ButtonLink href={`/inquilinos/nuevo?unidad=${unit.id}`} size="sm">
-                        <UserPlus className="size-4" aria-hidden />
-                        Asignar inquilino
-                      </ButtonLink>
+                      <>
+                        <ButtonLink href={`/inquilinos/asignar?unidad=${unit.id}`} size="sm">
+                          <UserPlus className="size-4" aria-hidden />
+                          Inquilino registrado
+                        </ButtonLink>
+                        <ButtonLink href={`/inquilinos/nuevo?unidad=${unit.id}`} size="sm" variant="outline">
+                          Inquilino nuevo
+                        </ButtonLink>
+                      </>
                     ) : undefined
                   }
                 />
@@ -479,9 +547,7 @@ export default async function UnitPage({
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium tabular-nums">
-                          {money(charge.amount, unit.currency)}
-                        </span>
+                        <Amount value={charge.amount} currency={unit.currency} className="text-sm font-medium" />
                         <StatusBadge tone={CHARGE_STATUS_TONES[charge.status]}>
                           {CHARGE_STATUS_LABELS[charge.status]}
                         </StatusBadge>

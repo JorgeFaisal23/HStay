@@ -1,5 +1,6 @@
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { moneyEntries, type Currency, type MoneyByCurrency } from "@/lib/currency";
 
 /** Prisma devuelve Decimal; en la UI siempre trabajamos con number. */
 export type Decimalish = { toString(): string } | number | string | null | undefined;
@@ -11,41 +12,54 @@ export function toNumber(value: Decimalish): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-const mxnFormatter = new Intl.NumberFormat("es-MX", {
-  style: "currency",
-  currency: "MXN",
-  minimumFractionDigits: 2,
-});
+/**
+ * Formateadores por moneda, en es-MX: los pesos se ven "$12,345.50" y los
+ * dólares "USD 12,345.50", así nunca se confunden (ver DESIGN.md §5).
+ */
+const formatters: Record<Currency, { full: Intl.NumberFormat; compact: Intl.NumberFormat }> = {
+  MXN: {
+    full: new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2 }),
+    compact: new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }),
+  },
+  USD: {
+    full: new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", minimumFractionDigits: 2 }),
+    compact: new Intl.NumberFormat("es-MX", { style: "currency", currency: "USD", maximumFractionDigits: 0 }),
+  },
+};
 
-const usdFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-});
+/** Intl separa "USD" de la cifra con un espacio duro; aquí se usa uno normal. */
+const plainSpaces = (text: string) => text.replace(/ /g, " ");
 
-const mxnCompactFormatter = new Intl.NumberFormat("es-MX", {
-  style: "currency",
-  currency: "MXN",
-  maximumFractionDigits: 0,
-});
-
-const usdCompactFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
-
-export function money(value: Decimalish, currency: string = "MXN") {
-  const num = toNumber(value);
-  return currency === "USD" ? usdFormatter.format(num) : mxnFormatter.format(num);
+/** Monto en la moneda de su propiedad (pesos si no se indica). */
+export function money(value: Decimalish, currency: Currency = "MXN") {
+  return plainSpaces(formatters[currency].full.format(toNumber(value)));
 }
 
 /** Para tarjetas de KPI, donde los centavos son ruido. */
-export function moneyCompact(value: Decimalish, currency: string = "MXN") {
-  const num = toNumber(value);
-  return currency === "USD"
-    ? usdCompactFormatter.format(num)
-    : mxnCompactFormatter.format(num);
+export function moneyCompact(value: Decimalish, currency: Currency = "MXN") {
+  return plainSpaces(formatters[currency].compact.format(toNumber(value)));
+}
+
+/**
+ * Monto separado en signo, símbolo y cifra. Lo usa <Amount> para atenuar el
+ * símbolo de moneda y dejar la cifra como protagonista.
+ */
+export function moneyParts(
+  value: Decimalish,
+  { compact = false, currency = "MXN" }: { compact?: boolean; currency?: Currency } = {},
+) {
+  const formatter = compact ? formatters[currency].compact : formatters[currency].full;
+  const parts = formatter.formatToParts(toNumber(value));
+  const pick = (types: Intl.NumberFormatPartTypes[]) =>
+    parts
+      .filter((part) => types.includes(part.type))
+      .map((part) => part.value)
+      .join("");
+  return {
+    sign: pick(["minusSign"]),
+    symbol: pick(["currency"]),
+    number: pick(["integer", "group", "decimal", "fraction"]),
+  };
 }
 
 export function longDate(value: Date | string) {
@@ -126,6 +140,21 @@ export function deadlineLabel(days: number) {
   return `vence en ${dayCount(days)}`;
 }
 
+/** Cuándo pasa algo respecto de hoy: "hoy", "mañana", "en 3 días", "hace 2 días". */
+export function relativeDay(days: number) {
+  if (days === 0) return "hoy";
+  if (days === 1) return "mañana";
+  if (days === -1) return "ayer";
+  return days > 0 ? `en ${dayCount(days)}` : `hace ${dayCount(Math.abs(days))}`;
+}
+
+/** Para cuándo es algo por hacer: "para hoy", "para mañana", "en 3 días", "atrasada 2 días". */
+export function dueLabel(days: number) {
+  if (days === 0) return "para hoy";
+  if (days === 1) return "para mañana";
+  return days > 1 ? `en ${dayCount(days)}` : `atrasada ${dayCount(Math.abs(days))}`;
+}
+
 export function initials(name: string) {
   return name
     .split(" ")
@@ -133,4 +162,14 @@ export function initials(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+/**
+ * Total por moneda como texto ("$12,000 · USD 2,000"), para atributos,
+ * toasts y descripciones. En JSX se usa <Amounts>.
+ */
+export function moneyTotals(totals: MoneyByCurrency, { compact = false } = {}) {
+  return moneyEntries(totals)
+    .map(([currency, amount]) => (compact ? moneyCompact(amount, currency) : money(amount, currency)))
+    .join(" · ");
 }

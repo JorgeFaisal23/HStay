@@ -7,7 +7,7 @@
  */
 export function PremiumBadge() {
   return (
-    <span className="bg-primary/10 text-primary ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+    <span className="bg-primary/10 text-primary ml-auto rounded-sm px-1.5 py-0.5 text-2xs font-semibold tracking-wide uppercase">
       Pro
     </span>
   );

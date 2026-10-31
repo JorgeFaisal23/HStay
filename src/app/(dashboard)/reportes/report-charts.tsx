@@ -16,6 +16,8 @@ import {
   YAxis,
 } from "recharts";
 import { SERVICE_TYPE_LABELS } from "@/lib/labels";
+import { moneyCompact } from "@/lib/format";
+import type { Currency } from "@/lib/currency";
 import type { ServiceType } from "@/generated/prisma/enums";
 
 /**
@@ -27,12 +29,8 @@ import type { ServiceType } from "@/generated/prisma/enums";
  * rejilla sí usamos `currentColor`, que en atributos sí hereda del CSS.
  */
 
-const currency = (value: unknown) =>
-  Number(value ?? 0).toLocaleString("es-MX", {
-    style: "currency",
-    currency: "MXN",
-    maximumFractionDigits: 0,
-  });
+/** Montos de las gráficas, sin centavos, en la moneda del reporte. */
+const amountIn = (code: Currency) => (value: unknown) => moneyCompact(Number(value ?? 0), code);
 
 const axisProps = {
   stroke: "currentColor",
@@ -69,10 +67,13 @@ function ChartFrame({
 export function IncomeVsExpensesChart({
   data,
   colors,
+  currency: code = "MXN",
 }: {
   data: { label: string; income: number; expenses: number }[];
   colors: string[];
+  currency?: Currency;
 }) {
+  const currency = amountIn(code);
   const [income, , , expenses] = colors;
 
   return (
@@ -120,10 +121,13 @@ export function IncomeVsExpensesChart({
 export function ProfitByBuildingChart({
   data,
   colors,
+  currency: code = "MXN",
 }: {
   data: { name: string; net: number }[];
   colors: string[];
+  currency?: Currency;
 }) {
+  const currency = amountIn(code);
   return (
     <ChartFrame height={240}>
       <BarChart data={data} margin={{ left: 4, right: 4, top: 8 }}>
@@ -144,10 +148,13 @@ export function ProfitByBuildingChart({
 export function ServiceBreakdownChart({
   data,
   colors,
+  currency: code = "MXN",
 }: {
   data: { type: string; amount: number }[];
   colors: string[];
+  currency?: Currency;
 }) {
+  const currency = amountIn(code);
   const chartData = data.map((item) => ({
     name: SERVICE_TYPE_LABELS[item.type as ServiceType] ?? item.type,
     value: item.amount,

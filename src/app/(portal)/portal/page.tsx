@@ -11,6 +11,8 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ButtonLink } from "@/components/shared/button-link";
+import { SubmitProofDialog } from "@/components/payments/submit-proof-dialog";
+import { Amount } from "@/components/shared/amount";
 import {
   Card,
   CardContent,
@@ -18,21 +20,23 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth/session";
+import { requireOrgUser } from "@/lib/auth/session";
 import { getPortalData } from "@/lib/queries/portal";
 import { deadlineLabel, longDate, money, periodLabel, shortDate } from "@/lib/format";
 import {
   BOOKING_SOURCE_LABELS,
   CHARGE_STATUS_LABELS,
   CHARGE_STATUS_TONES,
+  PROOF_STATUS_LABELS,
+  PROOF_STATUS_TONES,
   UNIT_TYPE_LABELS,
 } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "Mi vivienda" };
 
 export default async function PortalHomePage() {
-  const session = await requireUser(["TENANT"]);
-  const data = await getPortalData(session.sub, session.organizationId);
+  const { session, db } = await requireOrgUser(["TENANT"]);
+  const data = await getPortalData(db, session.sub);
 
   const firstName = session.name.split(" ")[0];
 
@@ -75,12 +79,14 @@ export default async function PortalHomePage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="bg-primary/5 border-primary/20 flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4">
+              <div className="bg-brand-soft flex flex-wrap items-center justify-between gap-4 rounded-lg p-4">
                 <div>
                   <p className="text-muted-foreground text-xs">Tu renta mensual</p>
-                  <p className="text-3xl font-semibold tabular-nums">
-                    {money(data.lease.rentAmount)}
-                  </p>
+                  <Amount
+                    value={data.lease.rentAmount}
+                    currency={data.currency}
+                    className="text-3xl tracking-tight"
+                  />
                 </div>
                 <div className="text-right">
                   <p className="text-muted-foreground text-xs">Día de pago</p>
@@ -130,7 +136,7 @@ export default async function PortalHomePage() {
                   label="Depósito en garantía"
                   value={
                     data.lease.depositAmount
-                      ? money(data.lease.depositAmount)
+                      ? money(data.lease.depositAmount, data.currency)
                       : "—"
                   }
                 />
@@ -162,17 +168,33 @@ export default async function PortalHomePage() {
                       {periodLabel(data.nextCharge.period)} · vence el{" "}
                       {shortDate(data.nextCharge.dueDate)}
                     </p>
-                    <p className="text-2xl font-semibold tabular-nums">
-                      {money(data.nextCharge.amount - data.nextCharge.paidAmount)}
-                    </p>
+                    <Amount
+                      value={data.nextCharge.amount - data.nextCharge.paidAmount}
+                      currency={data.currency}
+                      className="block text-2xl tracking-tight"
+                    />
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <StatusBadge
                       tone={CHARGE_STATUS_TONES[data.nextCharge.status]}
                     >
                       {CHARGE_STATUS_LABELS[data.nextCharge.status]}
                     </StatusBadge>
-                    <ButtonLink href="/portal/pagos" variant="outline" size="sm">
+                    {data.nextCharge.lastProof?.status === "SUBMITTED" ? (
+                      <StatusBadge tone={PROOF_STATUS_TONES.SUBMITTED}>
+                        Comprobante {PROOF_STATUS_LABELS.SUBMITTED.toLowerCase()}
+                      </StatusBadge>
+                    ) : (
+                      <SubmitProofDialog
+                        chargeId={data.nextCharge.id}
+                        periodName={periodLabel(data.nextCharge.period)}
+                        remaining={data.nextCharge.amount - data.nextCharge.paidAmount}
+                        currency={data.currency}
+                        resend={data.nextCharge.lastProof?.status === "REJECTED"}
+                        variant="default"
+                      />
+                    )}
+                    <ButtonLink href="/portal/pagos" variant="link" className="px-0">
                       Ver todos
                     </ButtonLink>
                   </div>
@@ -221,7 +243,7 @@ export default async function PortalHomePage() {
               />
               <Detail
                 label="Total de la estancia"
-                value={money(data.booking.totalAmount)}
+                value={money(data.booking.totalAmount, data.currency)}
               />
               <Detail
                 label="Reservado por"
@@ -241,6 +263,22 @@ export default async function PortalHomePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Un contrato terminado puede dejar saldo: se sigue mostrando. */}
+      {!data.lease && data.balance > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Saldo pendiente</CardTitle>
+            <CardDescription>De un contrato anterior.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center justify-between gap-4">
+            <Amount value={data.balance} currency={data.currency} className="text-2xl" tone="danger" />
+            <ButtonLink href="/portal/pagos" variant="outline" size="sm">
+              Ver detalle
+            </ButtonLink>
+          </CardContent>
+        </Card>
+      ) : null}
     </>
   );
 }

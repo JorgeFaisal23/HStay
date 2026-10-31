@@ -2,11 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { requireUserAction } from "@/lib/auth/session";
+import { requireOrgUserAction } from "@/lib/auth/session";
 import { shiftPeriod } from "@/lib/format";
 import { logAction } from "@/server/actions/audit";
-import type { ActionResult } from "@/server/actions/properties";
+import type { ActionResult } from "@/lib/action-result";
 
 const PERIOD = /^\d{4}-\d{2}$/;
 
@@ -25,29 +24,26 @@ export async function setServiceAmount(input: {
   period: string;
   amount: number | null;
 }): Promise<ActionResult> {
-  const session = await requireUserAction(["OWNER", "ADMIN"]);
+  const { session, orgId, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
 
-  const account = await prisma.serviceAccount.findFirst({
-    where: {
-      id: input.accountId,
-      ...(session.organizationId
-        ? {
-            OR: [
-              { building: { organizationId: session.organizationId } },
-              { unit: { building: { organizationId: session.organizationId } } },
-            ],
-          }
-        : {}),
-    },
+  if (!PERIOD.test(input.period)) return { error: "Periodo no válido." };
+
+  // La cuenta llega del cliente: sin esta comprobación, el upsert podría crear
+  // un cargo colgado de la cuenta de otra arrendadora.
+  const account = await db.serviceAccount.findUnique({
+    where: { id: input.accountId },
     select: { id: true },
   });
-  if (!account) return { error: "Cuenta de servicio no encontrada o sin permisos." };
+  if (!account) return { error: "No se encontró el servicio." };
 
   if (input.amount === null) {
-    await prisma.serviceCharge.deleteMany({
+    await db.serviceCharge.deleteMany({
       where: { serviceAccountId: input.accountId, period: input.period },
     });
+    await logAction(db, session.sub, "Borrado de captura de servicio", "ServiceCharge", input.accountId, input.period);
     revalidatePath("/servicios");
+    revalidatePath("/dashboard");
+    revalidatePath("/hoy");
     return { ok: true };
   }
 
@@ -58,23 +54,17 @@ export async function setServiceAmount(input: {
 
   const { accountId, period, amount } = parsed.data;
 
-  await prisma.serviceCharge.upsert({
+  await db.serviceCharge.upsert({
     where: { serviceAccountId_period: { serviceAccountId: accountId, period } },
-    create: { serviceAccountId: accountId, period, amount },
+    create: { organizationId: orgId, serviceAccountId: accountId, period, amount },
     update: { amount },
   });
 
-  await logAction(
-    session.sub,
-    "Captura de servicio",
-    "ServiceCharge",
-    accountId,
-    `${period}: ${amount}`,
-    session.organizationId,
-  );
+  await logAction(db, session.sub, "Captura de servicio", "ServiceCharge", accountId, `${period}: ${amount}`);
 
   revalidatePath("/servicios");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   return { ok: true };
 }
 
@@ -85,30 +75,19 @@ export async function setServiceAmount(input: {
 export async function copyPreviousMonth(period: string): Promise<
   ActionResult & { copied?: number }
 > {
-  const session = await requireUserAction(["OWNER", "ADMIN"]);
+  const { session, orgId, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
 
   if (!PERIOD.test(period)) return { error: "Periodo no válido." };
 
   const previous = shiftPeriod(period, -1);
 
-  const orgFilter = session.organizationId
-    ? {
-        serviceAccount: {
-          OR: [
-            { building: { organizationId: session.organizationId } },
-            { unit: { building: { organizationId: session.organizationId } } },
-          ],
-        },
-      }
-    : {};
-
   const [previousCharges, existing] = await Promise.all([
-    prisma.serviceCharge.findMany({
-      where: { period: previous, ...orgFilter },
+    db.serviceCharge.findMany({
+      where: { period: previous },
       select: { serviceAccountId: true, amount: true },
     }),
-    prisma.serviceCharge.findMany({
-      where: { period, ...orgFilter },
+    db.serviceCharge.findMany({
+      where: { period },
       select: { serviceAccountId: true },
     }),
   ]);
@@ -122,8 +101,9 @@ export async function copyPreviousMonth(period: string): Promise<
     return { ok: true, copied: 0 };
   }
 
-  await prisma.serviceCharge.createMany({
+  await db.serviceCharge.createMany({
     data: pending.map((charge) => ({
+      organizationId: orgId,
       serviceAccountId: charge.serviceAccountId,
       period,
       amount: charge.amount,
@@ -131,15 +111,16 @@ export async function copyPreviousMonth(period: string): Promise<
   });
 
   await logAction(
+    db,
     session.sub,
     "Copia de montos del mes anterior",
     "ServiceCharge",
     undefined,
     `${previous} → ${period}: ${pending.length} montos`,
-    session.organizationId,
   );
 
   revalidatePath("/servicios");
   revalidatePath("/dashboard");
+  revalidatePath("/hoy");
   return { ok: true, copied: pending.length };
 }

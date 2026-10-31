@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/shared/button-link";
 import { FormError } from "@/components/shared/form-field";
 import { UnitFormFields } from "@/components/units/unit-form-fields";
-import { createUnit, type ActionResult } from "@/server/actions/properties";
+import { createUnit } from "@/server/actions/properties";
+import type { ActionResult } from "@/lib/action-result";
 
 function Submit() {
   const { pending } = useFormStatus();

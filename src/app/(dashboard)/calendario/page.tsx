@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
-import { CalendarPlus, CalendarRange, List, LogIn, LogOut } from "lucide-react";
+import { CalendarRange, List, LogIn, LogOut } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ButtonLink } from "@/components/shared/button-link";
-import { canEdit } from "@/lib/permissions";
 import {
   Card,
   CardContent,
@@ -15,10 +14,14 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { requireUser } from "@/lib/auth/session";
+import { requireOrgUser } from "@/lib/auth/session";
 import { getCalendarData } from "@/lib/queries/calendar";
+import { getBookableUnits } from "@/lib/queries/properties";
+import { canEdit } from "@/lib/permissions";
+import { NewBookingDialog } from "@/components/bookings/new-booking-dialog";
 import { periodKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { TONE_CLASSES } from "@/lib/labels";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { Timeline, TimelineLegend } from "./timeline";
 
@@ -32,18 +35,16 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ mes?: string; edificio?: string; q?: string }>;
 }) {
-  const session = await requireUser(["OWNER", "ADMIN", "VIEWER"]);
+  const { session, db } = await requireOrgUser(["OWNER", "ADMIN", "VIEWER"]);
   const { mes, edificio, q } = await searchParams;
-  const editable = canEdit(session.role);
   const search = q?.trim().slice(0, 100) || undefined;
 
   const period = mes && PERIOD_PATTERN.test(mes) ? mes : periodKey(new Date());
-  const data = await getCalendarData(
-    period,
-    edificio || undefined,
-    session.organizationId,
-    search,
-  );
+  const editable = canEdit(session.role);
+  const [data, bookableUnits] = await Promise.all([
+    getCalendarData(db, period, edificio || undefined, search),
+    editable ? getBookableUnits(db) : Promise.resolve([]),
+  ]);
 
   return (
     <>
@@ -52,16 +53,15 @@ export default async function CalendarPage({
         description="Arrendamientos de largo plazo y reservas de corta estancia sobre el mismo eje de tiempo."
         action={
           editable ? (
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               <ButtonLink href="/reservas" variant="outline">
                 <List className="size-4" aria-hidden />
                 Lista de reservas
               </ButtonLink>
-              <ButtonLink href="/reservas/nueva">
-                <CalendarPlus className="size-4" aria-hidden />
-                Nueva reserva
-              </ButtonLink>
-            </>
+              {bookableUnits.length > 0 ? (
+                <NewBookingDialog units={bookableUnits} variant="default" />
+              ) : null}
+            </div>
           ) : null
         }
       />
@@ -89,28 +89,32 @@ export default async function CalendarPage({
           <Card>
             <CardHeader>
               <CardTitle>Ocupación por unidad</CardTitle>
-              <CardDescription>
+              <CardDescription className="tabular-nums">
                 {search
                   ? `${data.counts.shown} de ${data.counts.units} unidades coinciden con “${search}”`
                   : `${data.counts.units} ${data.counts.units === 1 ? "unidad" : "unidades"}`}{" "}
-                · {data.counts.leases} contratos vigentes · {data.counts.bookings}{" "}
-                reservas en el mes.
-                {editable ? " Haz clic en una barra para ver o editar." : ""}
+                · {data.counts.leases} {data.counts.leases === 1 ? "contrato vigente" : "contratos vigentes"} ·{" "}
+                {data.counts.bookings} {data.counts.bookings === 1 ? "reserva" : "reservas"} en el mes.
+                {editable ? " Haz clic en una barra para abrirla." : ""}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {data.rows.length === 0 ? (
                 <EmptyState
                   icon={CalendarRange}
-                  title={search ? "Sin coincidencias este mes" : "No hay unidades que mostrar"}
+                  title={search ? "Nadie coincide este mes" : "No hay unidades que mostrar"}
                   description={
                     search
-                      ? "Nadie con ese nombre o unidad ocupa este mes. Para buscar en cualquier fecha usa la lista de reservas."
+                      ? "Ninguna persona ni unidad con ese nombre ocupa este mes. Para buscar en cualquier fecha, usa la lista de reservas."
                       : "Registra propiedades y unidades para ver aquí su ocupación."
                   }
                   actions={
                     search && editable ? (
-                      <ButtonLink href={`/reservas?q=${encodeURIComponent(search)}&estado=ALL&desde=2000-01-01`} size="sm">
+                      <ButtonLink
+                        href={`/reservas?q=${encodeURIComponent(search)}&estado=ALL&desde=2000-01-01`}
+                        variant="outline"
+                        size="sm"
+                      >
                         Buscar en todas las fechas
                       </ButtonLink>
                     ) : undefined
@@ -237,10 +241,10 @@ function MonthGrid({
                       key={event.id}
                       title={`${event.type === "checkin" ? "Llegada" : "Salida"}: ${event.label} · Unidad ${event.unitCode}`}
                       className={cn(
-                        "flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px]",
+                        "flex items-center gap-1 truncate rounded-sm px-1 py-0.5 text-2xs",
                         event.type === "checkin"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+                          ? TONE_CLASSES.success
+                          : TONE_CLASSES.warning,
                       )}
                     >
                       {event.type === "checkin" ? (
@@ -260,7 +264,7 @@ function MonthGrid({
                     </li>
                   ))}
                   {dayEvents.length > 3 ? (
-                    <li className="text-muted-foreground px-1 text-[10px]">
+                    <li className="text-muted-foreground px-1 text-2xs">
                       +{dayEvents.length - 3} más
                     </li>
                   ) : null}

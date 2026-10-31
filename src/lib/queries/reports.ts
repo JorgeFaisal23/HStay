@@ -1,5 +1,6 @@
-import { prisma } from "@/lib/prisma";
-import { toNumber, periodKey, shiftPeriod, periodShortLabel } from "@/lib/format";
+import type { OrgDb } from "@/lib/db/scoped";
+import { toNumber, periodKey, periodToDate, shiftPeriod, periodShortLabel } from "@/lib/format";
+import { CURRENCIES, type Currency } from "@/lib/currency";
 
 /**
  * Datos de la sección Premium de reportes.
@@ -7,22 +8,26 @@ import { toNumber, periodKey, shiftPeriod, periodShortLabel } from "@/lib/format
  * Se calculan de verdad aunque la pantalla esté bloqueada: la vista previa
  * difuminada tiene que mostrar los números del negocio, no un relleno.
  */
-export async function getReportsData(months = 6, organizationId?: string | null) {
+export async function getReportsData(db: OrgDb, months = 6, requested?: Currency) {
+  // Un reporte es de una sola moneda: sus gráficas no pueden mezclar pesos
+  // con dólares. Se ofrecen las monedas que usan las propiedades.
+  const used = await db.building.findMany({ select: { currency: true }, distinct: ["currency"] });
+  const currencies = CURRENCIES.filter((c) => used.some((u) => u.currency === c));
+  const currency: Currency =
+    requested && currencies.includes(requested) ? requested : (currencies[0] ?? "MXN");
+  const inCurrency = { building: { currency } };
+
   const current = periodKey(new Date());
   const periods = Array.from({ length: months }, (_, i) =>
     shiftPeriod(current, -(months - 1 - i)),
   );
 
-  const orgFilter = organizationId ? { organizationId } : undefined;
+  const first = periodToDate(periods[0]);
+  const last = periodToDate(shiftPeriod(current, 1));
 
-  const [rentCharges, serviceCharges, buildings, bookings] = await Promise.all([
-    prisma.rentCharge.findMany({
-      where: {
-        period: { in: periods },
-        ...(organizationId
-          ? { lease: { unit: { building: orgFilter } } }
-          : {}),
-      },
+  const [rentCharges, serviceCharges, buildings, bookings, repairExpenses] = await Promise.all([
+    db.rentCharge.findMany({
+      where: { period: { in: periods }, lease: { unit: inCurrency } },
       select: {
         period: true,
         amount: true,
@@ -37,20 +42,8 @@ export async function getReportsData(months = 6, organizationId?: string | null)
         },
       },
     }),
-    prisma.serviceCharge.findMany({
-      where: {
-        period: { in: periods },
-        ...(organizationId
-          ? {
-              serviceAccount: {
-                OR: [
-                  { building: orgFilter },
-                  { unit: { building: orgFilter } },
-                ],
-              },
-            }
-          : {}),
-      },
+    db.serviceCharge.findMany({
+      where: { period: { in: periods }, serviceAccount: { OR: [inCurrency, { unit: inCurrency }] } },
       select: {
         period: true,
         amount: true,
@@ -63,8 +56,8 @@ export async function getReportsData(months = 6, organizationId?: string | null)
         },
       },
     }),
-    prisma.building.findMany({
-      where: orgFilter,
+    db.building.findMany({
+      where: { currency },
       select: {
         id: true,
         name: true,
@@ -72,16 +65,21 @@ export async function getReportsData(months = 6, organizationId?: string | null)
       },
       orderBy: { name: "asc" },
     }),
-    prisma.booking.findMany({
-      where: {
-        status: { in: ["CONFIRMED", "COMPLETED"] },
-        ...(organizationId
-          ? { unit: { building: orgFilter } }
-          : {}),
-      },
+    db.booking.findMany({
+      where: { status: { in: ["CONFIRMED", "COMPLETED"] }, unit: inCurrency },
       select: { totalAmount: true, checkIn: true, source: true },
     }),
+    // Gastos de unidad (reparaciones): solo los aprobados cuentan.
+    db.expense.findMany({
+      where: { status: "APPROVED", spentOn: { gte: first, lt: last }, unit: inCurrency },
+      select: { amount: true, spentOn: true, unit: { select: { buildingId: true } } },
+    }),
   ]);
+  const repairs = repairExpenses.map((e) => ({
+    period: periodKey(e.spentOn),
+    amount: toNumber(e.amount),
+    buildingId: e.unit.buildingId,
+  }));
 
   // ------------------------------------------------ serie mensual
   const monthly = periods.map((period) => {
@@ -90,7 +88,9 @@ export async function getReportsData(months = 6, organizationId?: string | null)
 
     const income = rent.reduce((sum, c) => sum + toNumber(c.amount), 0);
     const collected = rent.reduce((sum, c) => sum + toNumber(c.paidAmount), 0);
-    const expenses = services.reduce((sum, c) => sum + toNumber(c.amount), 0);
+    const expenses =
+      services.reduce((sum, c) => sum + toNumber(c.amount), 0) +
+      repairs.filter((r) => r.period === period).reduce((sum, r) => sum + r.amount, 0);
 
     return {
       period,
@@ -113,7 +113,8 @@ export async function getReportsData(months = 6, organizationId?: string | null)
         const id = c.serviceAccount.buildingId ?? c.serviceAccount.unit?.buildingId;
         return id === building.id;
       })
-      .reduce((sum, c) => sum + toNumber(c.amount), 0);
+      .reduce((sum, c) => sum + toNumber(c.amount), 0) +
+      repairs.filter((r) => r.buildingId === building.id).reduce((sum, r) => sum + r.amount, 0);
 
     const total = building.units.length;
     const occupied = building.units.filter(
@@ -137,6 +138,8 @@ export async function getReportsData(months = 6, organizationId?: string | null)
     const type = charge.serviceAccount.type;
     serviceTotals.set(type, (serviceTotals.get(type) ?? 0) + toNumber(charge.amount));
   }
+  const repairsTotal = repairs.reduce((sum, r) => sum + r.amount, 0);
+  if (repairsTotal > 0) serviceTotals.set("Reparaciones", repairsTotal);
 
   const shortTermIncome = bookings.reduce(
     (sum, b) => sum + toNumber(b.totalAmount),
@@ -144,6 +147,10 @@ export async function getReportsData(months = 6, organizationId?: string | null)
   );
 
   return {
+    /** Moneda de todo el reporte. */
+    currency,
+    /** Monedas que usan las propiedades; con más de una se ofrece cambiar. */
+    currencies,
     periods,
     monthly,
     byBuilding,

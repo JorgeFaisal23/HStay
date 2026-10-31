@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { getBuildingsForSelect } from "@/lib/queries/properties";
-import { requireUser } from "@/lib/auth/session";
+import { requireOrgUser } from "@/lib/auth/session";
 import { NewUnitForm } from "./new-unit-form";
 
 export const metadata: Metadata = { title: "Nueva unidad" };
@@ -14,9 +14,9 @@ export default async function NewUnitPage({
 }: {
   searchParams: Promise<{ edificio?: string }>;
 }) {
-  const session = await requireUser(["OWNER", "ADMIN"]);
+  const { db } = await requireOrgUser(["OWNER", "ADMIN"]);
   const { edificio } = await searchParams;
-  const buildings = await getBuildingsForSelect(session.organizationId);
+  const buildings = await getBuildingsForSelect(db);
 
   const backHref = edificio ? `/edificios/${edificio}` : "/edificios";
 

@@ -1,153 +1,73 @@
-import { prisma } from "@/lib/prisma";
-import { toNumber } from "@/lib/format";
-import { dayToDate, utcDay } from "@/lib/services/lease-renewal";
-import { nightsBetween } from "@/lib/services/booking-dates";
-import type { BookingStatus } from "@/generated/prisma/enums";
+import type { OrgDb } from "@/lib/db/scoped";
+import { inputDate, toNumber } from "@/lib/format";
 
-/** Unidades donde se puede capturar una reserva, con sus tarifas de referencia. */
-export async function getBookableUnits(organizationId?: string | null) {
-  const units = await prisma.unit.findMany({
-    where: organizationId ? { building: { organizationId } } : undefined,
-    orderBy: [{ building: { name: "asc" } }, { code: "asc" }],
-    select: {
-      id: true,
-      code: true,
-      status: true,
-      currency: true,
-      nightlyPrice: true,
-      weeklyPrice: true,
-      baseRent: true,
-      building: { select: { id: true, name: true } },
-    },
-  });
-
-  return units.map((unit) => ({
-    id: unit.id,
-    code: unit.code,
-    status: unit.status,
-    currency: unit.currency,
-    buildingId: unit.building.id,
-    buildingName: unit.building.name,
-    nightlyPrice: unit.nightlyPrice === null ? null : toNumber(unit.nightlyPrice),
-    weeklyPrice: unit.weeklyPrice === null ? null : toNumber(unit.weeklyPrice),
-    monthlyPrice: toNumber(unit.baseRent) > 0 ? toNumber(unit.baseRent) : null,
-  }));
-}
-
-/** Propiedades de la organización, para los filtros. */
-export async function getBuildingOptions(organizationId?: string | null) {
-  return prisma.building.findMany({
-    where: organizationId ? { organizationId } : undefined,
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-}
-
-export type BookableUnit =Awaited<ReturnType<typeof getBookableUnits>>[number];
+/** Cuántas reservas muestra la lista como máximo; arriba de eso, afinar filtros. */
+export const BOOKINGS_LIMIT = 300;
 
 export type BookingFilters = {
-  /** Texto libre: nombre, correo o teléfono del huésped, o código de unidad. */
+  /** Texto libre: nombre, correo o teléfono del huésped, o código de la unidad. */
   q?: string;
   buildingId?: string;
   /** AAAA-MM-DD. Estancias que siguen ocupando la unidad desde este día. */
   from?: string;
-  /** AAAA-MM-DD. Estancias que llegan antes o en este día. */
+  /** AAAA-MM-DD. Estancias que llegan a más tardar este día. */
   to?: string;
-  status?: BookingStatus | "ALL";
+  /** Sin valor: solo confirmadas. */
+  status?: "CANCELLED" | "ALL";
+  /** Solo estas propiedades (rol Captura). Vacío: ninguna. */
+  buildingIds?: string[];
+  /** Una sola reserva (al llegar desde el calendario). */
+  id?: string;
 };
 
-/**
- * Listado de reservas con filtros. Una reserva entra si su estancia toca el
- * rango [from, to]; sin `from` se muestran las actuales y las futuras.
- */
-export async function getBookings(
-  filters: BookingFilters,
-  organizationId?: string | null,
-) {
-  const q = filters.q?.trim();
-  const from = filters.from ?? utcDay(new Date());
-
-  const bookings = await prisma.booking.findMany({
-    where: {
-      ...(filters.status && filters.status !== "ALL"
-        ? { status: filters.status }
-        : filters.status === "ALL"
-          ? {}
-          : { status: { not: "CANCELLED" } }),
-      checkOut: { gt: dayToDate(from) },
-      ...(filters.to ? { checkIn: { lte: dayToDate(filters.to) } } : {}),
-      unit: {
-        ...(organizationId ? { building: { organizationId } } : {}),
-        ...(filters.buildingId ? { buildingId: filters.buildingId } : {}),
-      },
-      ...(q
-        ? {
-            OR: [
-              { guestName: { contains: q, mode: "insensitive" } },
-              { guestEmail: { contains: q, mode: "insensitive" } },
-              { guestPhone: { contains: q } },
-              { unit: { code: { contains: q, mode: "insensitive" } } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { checkIn: "asc" },
-    take: 300,
-    select: {
-      id: true,
-      source: true,
-      status: true,
-      guestName: true,
-      guestEmail: true,
-      guestPhone: true,
-      checkIn: true,
-      checkOut: true,
-      guests: true,
-      totalAmount: true,
-      unit: {
-        select: {
-          id: true,
-          code: true,
-          currency: true,
-          building: { select: { id: true, name: true } },
-        },
-      },
-    },
-  });
-
-  return bookings.map((b) => {
-    const checkIn = utcDay(b.checkIn);
-    const checkOut = utcDay(b.checkOut);
-    return {
-      id: b.id,
-      source: b.source,
-      status: b.status,
-      guestName: b.guestName,
-      guestEmail: b.guestEmail,
-      guestPhone: b.guestPhone,
-      checkIn,
-      checkOut,
-      nights: nightsBetween(checkIn, checkOut),
-      guests: b.guests,
-      totalAmount: toNumber(b.totalAmount),
-      currency: b.unit.currency,
-      unitId: b.unit.id,
-      unitCode: b.unit.code,
-      buildingId: b.unit.building.id,
-      buildingName: b.unit.building.name,
-    };
-  });
+/** Mediodía local de un "AAAA-MM-DD", como guardan las fechas las acciones. */
+function day(value: string) {
+  return new Date(`${value}T12:00:00`);
 }
 
-export async function getBooking(bookingId: string, organizationId?: string | null) {
-  const booking = await prisma.booking.findFirst({
+/**
+ * Reservas de la arrendadora con filtros. Una reserva entra si su estancia
+ * toca el rango [from, to]; sin `from` se muestran las actuales y futuras.
+ */
+export async function getBookings(db: OrgDb, filters: BookingFilters) {
+  const q = filters.q?.trim();
+  const from = filters.from ?? inputDate(new Date());
+
+  // El límite de propiedades (Captura) se suma a todo lo demás con AND, así
+  // ni la búsqueda por id ni el filtro de propiedad pueden saltárselo.
+  const scope = filters.buildingIds ? { unit: { buildingId: { in: filters.buildingIds } } } : {};
+
+  const bookings = await db.booking.findMany({
     where: {
-      id: bookingId,
-      ...(organizationId ? { unit: { building: { organizationId } } } : {}),
+      AND: [
+        scope,
+        filters.id
+      ? { id: filters.id }
+      : {
+          ...(filters.status === "ALL"
+            ? {}
+            : { status: filters.status === "CANCELLED" ? "CANCELLED" : "CONFIRMED" }),
+          // La salida libera la unidad: una estancia que sale el día `from` ya no cuenta.
+          checkOut: { gt: day(from) },
+          ...(filters.to ? { checkIn: { lte: day(filters.to) } } : {}),
+          ...(filters.buildingId ? { unit: { buildingId: filters.buildingId } } : {}),
+          ...(q
+            ? {
+                OR: [
+                  { guestName: { contains: q, mode: "insensitive" as const } },
+                  { guestEmail: { contains: q, mode: "insensitive" as const } },
+                  { guestPhone: { contains: q } },
+                  { unit: { code: { contains: q, mode: "insensitive" as const } } },
+                ],
+              }
+            : {}),
+        },
+      ],
     },
+    orderBy: { checkIn: "asc" },
+    take: BOOKINGS_LIMIT,
     select: {
       id: true,
-      unitId: true,
       source: true,
       status: true,
       guestName: true,
@@ -158,37 +78,31 @@ export async function getBooking(bookingId: string, organizationId?: string | nu
       guests: true,
       totalAmount: true,
       notes: true,
-      createdAt: true,
       unit: {
-        select: {
-          code: true,
-          currency: true,
-          building: { select: { id: true, name: true } },
-        },
+        select: { id: true, code: true, building: { select: { id: true, name: true, currency: true } } },
       },
     },
   });
-  if (!booking) return null;
 
-  return {
-    id: booking.id,
-    unitId: booking.unitId,
-    source: booking.source,
-    status: booking.status,
-    guestName: booking.guestName,
-    guestEmail: booking.guestEmail,
-    guestPhone: booking.guestPhone,
-    checkIn: utcDay(booking.checkIn),
-    checkOut: utcDay(booking.checkOut),
-    guests: booking.guests,
-    totalAmount: toNumber(booking.totalAmount),
-    notes: booking.notes,
-    createdAt: booking.createdAt,
-    unitCode: booking.unit.code,
-    currency: booking.unit.currency,
-    buildingId: booking.unit.building.id,
-    buildingName: booking.unit.building.name,
-  };
+  return bookings.map((b) => ({
+    id: b.id,
+    source: b.source,
+    status: b.status,
+    guestName: b.guestName,
+    guestEmail: b.guestEmail,
+    guestPhone: b.guestPhone,
+    checkIn: b.checkIn,
+    checkOut: b.checkOut,
+    nights: Math.max(0, Math.round((b.checkOut.getTime() - b.checkIn.getTime()) / 86_400_000)),
+    guests: b.guests,
+    totalAmount: toNumber(b.totalAmount),
+    notes: b.notes,
+    unitId: b.unit.id,
+    unitCode: b.unit.code,
+    buildingId: b.unit.building.id,
+    buildingName: b.unit.building.name,
+    currency: b.unit.building.currency,
+  }));
 }
 
-export type BookingDetail = NonNullable<Awaited<ReturnType<typeof getBooking>>>;
+export type BookingRow = Awaited<ReturnType<typeof getBookings>>[number];

@@ -1,5 +1,6 @@
-import { prisma } from "@/lib/prisma";
-import { money, periodToDate, type Decimalish } from "@/lib/format";
+import type { OrgDb } from "@/lib/db/scoped";
+import { moneyCompact, periodToDate } from "@/lib/format";
+import { stayDaysInMonth } from "@/lib/stay-range";
 
 /**
  * Datos del calendario global: contratos de largo plazo y reservas de corta
@@ -42,48 +43,59 @@ function daysInMonth(year: number, month: number) {
 }
 
 export async function getCalendarData(
+  db: OrgDb,
   period: string,
   buildingId?: string,
-  organizationId?: string | null,
   search?: string,
+  options: {
+    /** Solo estas propiedades (rol Captura). */
+    buildingIds?: string[];
+    /**
+     * Sin nombre ni renta de los inquilinos de largo plazo: la barra solo dice
+     * que la unidad está ocupada por contrato (rol Captura).
+     */
+    privateLeases?: boolean;
+    /** A dónde lleva el clic en una reserva. */
+    bookingHref?: (bookingId: string) => string;
+  } = {},
 ) {
   const monthStart = periodToDate(period);
   const year = monthStart.getFullYear();
   const month = monthStart.getMonth();
   const totalDays = daysInMonth(year, month);
   const monthEnd = new Date(year, month, totalDays, 23, 59, 59);
+  const bookingHref = options.bookingHref ?? ((id: string) => `/reservas?reserva=${id}`);
 
-  const orgFilter = organizationId ? { organizationId } : undefined;
-  // Un solo filtro de unidad (propiedad + organización) para contratos y
-  // reservas; antes uno pisaba al otro y el filtro por propiedad se perdía.
-  const unitFilter = {
-    ...(buildingId ? { buildingId } : {}),
-    ...(organizationId ? { building: orgFilter } : {}),
+  // Límite de propiedades (Captura) y filtro elegido, siempre juntos con AND.
+  const unitWhere = {
+    AND: [
+      options.buildingIds ? { buildingId: { in: options.buildingIds } } : {},
+      buildingId ? { buildingId } : {},
+    ],
   };
 
   const [buildings, units, leases, bookings] = await Promise.all([
-    prisma.building.findMany({
-      where: orgFilter,
+    db.building.findMany({
+      where: options.buildingIds ? { id: { in: options.buildingIds } } : undefined,
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    prisma.unit.findMany({
-      where: unitFilter,
+    db.unit.findMany({
+      where: unitWhere,
       orderBy: [{ building: { name: "asc" } }, { code: "asc" }],
       select: {
         id: true,
         code: true,
         status: true,
-        currency: true,
-        building: { select: { id: true, name: true } },
+        building: { select: { id: true, name: true, currency: true } },
       },
     }),
-    prisma.lease.findMany({
+    db.lease.findMany({
       where: {
         status: "ACTIVE",
         startDate: { lte: monthEnd },
         endDate: { gte: monthStart },
-        unit: unitFilter,
+        unit: unitWhere,
       },
       select: {
         id: true,
@@ -94,12 +106,12 @@ export async function getCalendarData(
         tenant: { select: { id: true, name: true } },
       },
     }),
-    prisma.booking.findMany({
+    db.booking.findMany({
       where: {
         status: { not: "CANCELLED" },
         checkIn: { lte: monthEnd },
         checkOut: { gte: monthStart },
-        unit: unitFilter,
+        unit: unitWhere,
       },
       select: {
         id: true,
@@ -114,9 +126,8 @@ export async function getCalendarData(
     }),
   ]);
 
-  const unitCurrency = new Map(units.map((u) => [u.id, u.currency]));
-  const amount = (value: Decimalish, unitId: string) =>
-    money(value, unitCurrency.get(unitId) ?? "MXN");
+  // Moneda de cada unidad (la de su propiedad), para los montos de las barras.
+  const unitCurrency = new Map(units.map((u) => [u.id, u.building.currency]));
 
   /** Recorta un intervalo al mes visible y lo expresa en días del mes. */
   function clip(start: Date, end: Date) {
@@ -142,36 +153,32 @@ export async function getCalendarData(
     push(lease.unitId, {
       id: lease.id,
       kind: "LEASE",
-      label: lease.tenant.name,
+      label: options.privateLeases ? "Contrato de largo plazo" : lease.tenant.name,
       startDay,
       endDay,
       continuesBefore: startsBefore,
       continuesAfter: endsAfter,
-      detail: `Contrato de arrendamiento · ${amount(lease.rentAmount, lease.unitId)} al mes`,
-      href: `/inquilinos/${lease.tenant.id}`,
+      detail: options.privateLeases
+        ? "Ocupada por un contrato de largo plazo"
+        : `Contrato de arrendamiento · ${moneyCompact(lease.rentAmount, unitCurrency.get(lease.unitId))} al mes`,
+      href: options.privateLeases ? "" : `/inquilinos/${lease.tenant.id}`,
     });
   }
 
+  // La salida libera la unidad ese mismo día: una estancia que sale el día 1
+  // no ocupa ninguna noche de este mes y no se dibuja (ver stayDaysInMonth).
+  let bookingsInMonth = 0;
   for (const booking of bookings) {
-    // La salida libera la unidad ese mismo día: la barra termina el día previo.
-    const lastNight = new Date(booking.checkOut.getTime() - 86_400_000);
-    const effectiveEnd = lastNight < booking.checkIn ? booking.checkIn : lastNight;
-    // Una reserva que sale el día 1 no ocupa ninguna noche de este mes.
-    if (effectiveEnd < monthStart) continue;
-    const { startDay, endDay, startsBefore, endsAfter } = clip(
-      booking.checkIn,
-      effectiveEnd,
-    );
+    const range = stayDaysInMonth(booking.checkIn, booking.checkOut, year, month);
+    if (!range) continue;
+    bookingsInMonth++;
     push(booking.unitId, {
       id: booking.id,
       kind: booking.source,
       label: booking.guestName,
-      startDay,
-      endDay,
-      continuesBefore: startsBefore,
-      continuesAfter: endsAfter,
-      detail: `${booking.guests} ${booking.guests === 1 ? "huésped" : "huéspedes"} · ${amount(booking.totalAmount, booking.unitId)}`,
-      href: `/reservas/${booking.id}`,
+      ...range,
+      detail: `${booking.guests} ${booking.guests === 1 ? "huésped" : "huéspedes"} · ${moneyCompact(booking.totalAmount, unitCurrency.get(booking.unitId))}`,
+      href: bookingHref(booking.id),
     });
   }
 
@@ -185,7 +192,7 @@ export async function getCalendarData(
   }));
 
   // Búsqueda: unidades cuyo código coincide o que tienen en el mes una
-  // estancia de ese huésped.
+  // estancia de esa persona.
   const needle = normalize(search ?? "");
   const rows = needle
     ? allRows.filter(
@@ -206,7 +213,7 @@ export async function getCalendarData(
       label: b.guestName,
       unitId: b.unitId,
       source: b.source,
-      href: `/reservas/${b.id}`,
+      href: bookingHref(b.id),
     })),
     ...bookings.map((b) => ({
       id: `out-${b.id}`,
@@ -215,16 +222,14 @@ export async function getCalendarData(
       label: b.guestName,
       unitId: b.unitId,
       source: b.source,
-      href: `/reservas/${b.id}`,
+      href: bookingHref(b.id),
     })),
   ]
     .filter((e) => e.date >= monthStart && e.date <= monthEnd)
     .map((e) => ({ ...e, unitCode: unitCodes.get(e.unitId) ?? "" }))
     .filter(
       (e) =>
-        !needle ||
-        normalize(e.unitCode).includes(needle) ||
-        normalize(e.label).includes(needle),
+        !needle || normalize(e.unitCode).includes(needle) || normalize(e.label).includes(needle),
     );
 
   return {
@@ -237,7 +242,7 @@ export async function getCalendarData(
     events,
     counts: {
       leases: leases.length,
-      bookings: bookings.length,
+      bookings: bookingsInMonth,
       units: units.length,
       shown: rows.length,
     },

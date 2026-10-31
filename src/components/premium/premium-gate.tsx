@@ -29,8 +29,8 @@ export async function PremiumGate({
         {children}
       </div>
 
-      <div className="from-background/40 via-background/85 to-background absolute inset-0 flex items-center justify-center bg-gradient-to-b p-6">
-        <div className="bg-card w-full max-w-md rounded-xl border p-6 text-center shadow-lg">
+      <div className="via-background/40 to-background/70 absolute inset-0 flex items-center justify-center bg-gradient-to-b p-6">
+        <div className="glass-strong w-full max-w-md rounded-xl p-6 text-center">
           <div className="bg-primary/10 text-primary mx-auto flex size-11 items-center justify-center rounded-full">
             <Lock className="size-5" aria-hidden />
           </div>

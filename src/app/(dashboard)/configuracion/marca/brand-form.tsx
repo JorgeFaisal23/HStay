@@ -20,7 +20,7 @@ import {
 import type { BorderRadius } from "@/generated/prisma/enums";
 import { cn } from "@/lib/utils";
 import { updateBrand } from "@/server/actions/brand";
-import type { ActionResult } from "@/server/actions/properties";
+import type { ActionResult } from "@/lib/action-result";
 
 const RADII: BorderRadius[] = ["SHARP", "SOFT", "ROUND"];
 const MAX_LOGO_BYTES = 300 * 1024;
@@ -173,7 +173,7 @@ export function BrandForm({
                     aria-pressed={color.toLowerCase() === preset.toLowerCase()}
                     onClick={() => setColor(preset)}
                     className={cn(
-                      "focus-visible:ring-ring flex size-8 items-center justify-center rounded-full transition focus-visible:ring-3 focus-visible:outline-none",
+                      "focus-visible:ring-ring flex size-8 items-center justify-center rounded-full transition-shadow focus-visible:ring-3 focus-visible:outline-none",
                       color.toLowerCase() === preset.toLowerCase() &&
                         "ring-foreground/30 ring-2 ring-offset-2",
                     )}
@@ -217,7 +217,7 @@ export function BrandForm({
                     aria-pressed={radius === option}
                     onClick={() => setRadius(option)}
                     className={cn(
-                      "flex items-center gap-2 border px-3 py-2 text-sm transition",
+                      "flex items-center gap-2 border px-3 py-2 text-sm transition-colors",
                       radius === option
                         ? "border-primary bg-primary/5"
                         : "hover:bg-accent",
@@ -363,7 +363,7 @@ function BrandPreview({
           <div className="flex items-center justify-between">
             <span className="text-lg font-semibold tabular-nums">$6,500.00</span>
             <span
-              className="px-2 py-0.5 text-[11px] font-medium"
+              className="px-2 py-0.5 text-2xs font-medium"
               style={{
                 background: `color-mix(in oklch, ${color}, transparent 88%)`,
                 color,

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Download, FileSignature, FileText, PenLine, Plus } from "lucide-react";
+import Link from "next/link";
+import { FileText } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { PremiumGate } from "@/components/premium/premium-gate";
-import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Amount } from "@/components/shared/amount";
+import { ComingSoon } from "@/components/premium/coming-soon-badge";
 import {
   Card,
   CardContent,
@@ -11,50 +12,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
-import { toNumber, longDate, money } from "@/lib/format";
+import { requireOrgUser } from "@/lib/auth/session";
+import { longDate, toNumber } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Contratos" };
 
-const TEMPLATES = [
-  {
-    name: "Arrendamiento de cuarto amueblado",
-    description: "12 meses, servicios incluidos, depósito de un mes.",
-    uses: 7,
-  },
-  {
-    name: "Arrendamiento de departamento",
-    description: "12 o 24 meses, luz e internet por cuenta del inquilino.",
-    uses: 2,
-  },
-  {
-    name: "Convenio de renta temporal",
-    description: "Estancias de más de un mes sin contrato anual.",
-    uses: 0,
-  },
-];
-
 export default async function ContractsPage() {
-  const session = await requireUser(["OWNER", "ADMIN"]);
+  const { db } = await requireOrgUser(["OWNER", "ADMIN"]);
 
-  const leases = await prisma.lease.findMany({
-    where: {
-      status: "ACTIVE",
-      ...(session.organizationId
-        ? { unit: { building: { organizationId: session.organizationId } } }
-        : {}),
-    },
-    orderBy: { startDate: "desc" },
-    take: 8,
+  const leases = await db.lease.findMany({
+    where: { status: "ACTIVE" },
+    orderBy: { endDate: "asc" },
     select: {
       id: true,
-      startDate: true,
       endDate: true,
       rentAmount: true,
-      tenant: { select: { name: true } },
+      tenant: { select: { id: true, name: true } },
       unit: {
-        select: { code: true, building: { select: { name: true } } },
+        select: { code: true, building: { select: { name: true, currency: true } } },
       },
     },
   });
@@ -63,97 +38,56 @@ export default async function ContractsPage() {
     <>
       <PageHeader
         title="Contratos"
-        description="Genera el contrato desde una plantilla y recoge la firma del inquilino sin imprimir nada."
-        action={
-          <Button disabled>
-            <Plus className="size-4" aria-hidden />
-            Nueva plantilla
-          </Button>
-        }
+        description="Los contratos vigentes de todas tus propiedades, del más próximo a vencer al más lejano."
       />
 
-      <PremiumGate
-        title="Contratos y firma digital"
-        description="Plantillas con tus cláusulas, generación en PDF con los datos ya llenos y firma electrónica del inquilino desde su celular."
-      >
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Plantillas</CardTitle>
-              <CardDescription>
-                Tus cláusulas, con los datos de la unidad y del inquilino
-                rellenados automáticamente.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="grid gap-3 md:grid-cols-3">
-                {TEMPLATES.map((template) => (
-                  <li key={template.name} className="rounded-lg border p-4">
-                    <span className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-md">
-                      <FileText className="size-4" aria-hidden />
-                    </span>
-                    <p className="mt-3 font-medium text-pretty">{template.name}</p>
-                    <p className="text-muted-foreground mt-1 text-xs text-pretty">
-                      {template.description}
-                    </p>
-                    <p className="text-muted-foreground mt-3 text-xs">
-                      {template.uses} contratos generados
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+      <ComingSoon
+        title="Plantillas y firma digital"
+        description="Generar el contrato en PDF desde tus propias cláusulas, con los datos de la unidad y del inquilino ya llenos, y recoger la firma desde el celular. Será parte del plan Premium."
+        points={[
+          "Mientras tanto, la vigencia, la renta y el depósito se registran en la ficha de cada inquilino.",
+          "Renovar, terminar o cancelar un contrato se hace desde esa misma ficha.",
+        ]}
+      />
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Contratos vigentes</CardTitle>
-              <CardDescription>
-                Estado de la firma de cada contrato.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="divide-y">
-                {leases.map((lease, index) => (
-                  <li
-                    key={lease.id}
-                    className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+      <Card>
+        <CardHeader>
+          <CardTitle>Contratos vigentes</CardTitle>
+          <CardDescription>
+            {leases.length} {leases.length === 1 ? "contrato" : "contratos"}.
+            Abre uno para ver sus cobros o cambiarlo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {leases.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="No hay contratos vigentes"
+              description="Asigna una unidad a un inquilino para registrar su contrato."
+            />
+          ) : (
+            <ul className="divide-y">
+              {leases.map((lease) => (
+                <li key={lease.id}>
+                  <Link
+                    href={`/inquilinos/${lease.tenant.id}`}
+                    className="hover:bg-accent/60 -mx-2 flex flex-wrap items-center justify-between gap-3 rounded-lg px-2 py-3 transition-colors"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium">{lease.tenant.name}</p>
                       <p className="text-muted-foreground text-xs">
-                        {lease.unit.building.name} · Unidad {lease.unit.code} ·{" "}
-                        {money(toNumber(lease.rentAmount))} · hasta{" "}
-                        {longDate(lease.endDate)}
+                        {lease.unit.building.name} · Unidad {lease.unit.code} ·
+                        hasta {longDate(lease.endDate)}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {/* En Premium este estado vendría del proveedor de firma. */}
-                      <StatusBadge tone={index % 4 === 1 ? "warning" : "success"}>
-                        {index % 4 === 1 ? (
-                          <>
-                            <PenLine className="size-3" aria-hidden />
-                            Pendiente de firma
-                          </>
-                        ) : (
-                          <>
-                            <FileSignature className="size-3" aria-hidden />
-                            Firmado
-                          </>
-                        )}
-                      </StatusBadge>
-                      <Button variant="ghost" size="sm" disabled>
-                        <Download className="size-4" aria-hidden />
-                        PDF
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
-      </PremiumGate>
+                    <Amount value={toNumber(lease.rentAmount)} currency={lease.unit.building.currency} className="text-sm" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

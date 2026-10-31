@@ -1,298 +1,290 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { requireUserAction } from "@/lib/auth/session";
+import { requireOrgUserAction } from "@/lib/auth/session";
+import { canUseUnit } from "@/lib/capture";
+import type { OrgRole } from "@/lib/auth/jwt";
 import { logAction } from "@/server/actions/audit";
-import type { ActionResult } from "@/server/actions/properties";
+import { parseDateInput } from "@/server/actions/lease-rules";
+import type { ActionResult } from "@/lib/action-result";
+import type { OrgDb } from "@/lib/db/scoped";
 import { shortDate } from "@/lib/format";
-import { dayToDate, utcDay } from "@/lib/services/lease-renewal";
-import { isIsoDay, nightsBetween, staysOverlap } from "@/lib/services/booking-dates";
 
-/**
- * Reservas de corta estancia capturadas a mano (directas, por teléfono o de
- * un canal sin sincronizar). Viven en `Booking`, no en `Lease`: no generan
- * cargos mensuales y una unidad puede tener muchas, siempre que no se empalmen.
- */
+/** Quién registra reservas: el equipo y Captura (este, solo en sus propiedades). */
+const BOOKING_ROLES: OrgRole[] = ["OWNER", "ADMIN", "CAPTURE"];
 
-// ---------------------------------------------------------------- esquema
-
-const isoDay = z.string().refine(isIsoDay, "Escribe una fecha válida.");
+const dateInput = (message: string) =>
+  z.string({ error: message }).regex(/^\d{4}-\d{2}-\d{2}$/, message);
 
 const bookingSchema = z
   .object({
     unitId: z.string().min(1, "Elige la unidad."),
-    source: z.enum(["MANUAL", "DIRECT", "AIRBNB"]),
     guestName: z.string().trim().min(2, "Escribe el nombre del huésped.").max(120),
-    // Opcional: muchas reservas llegan sin correo.
-    guestEmail: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .email("El correo no es válido. Corrígelo o déjalo vacío.")
-      .optional(),
-    guestPhone: z.string().trim().max(40, "El teléfono es demasiado largo.").optional(),
-    checkIn: isoDay,
-    checkOut: isoDay,
-    guests: z.coerce
-      .number()
-      .int("El número de huéspedes debe ser entero.")
-      .min(1, "Debe haber al menos un huésped.")
-      .max(50, "Revisa el número de huéspedes."),
-    totalAmount: z.coerce.number().min(0, "El monto no puede ser negativo."),
-    notes: z.string().trim().max(1000, "Las notas son demasiado largas.").optional(),
+    guestEmail: z.email("El correo no es válido.").optional(),
+    guestPhone: z.string().trim().max(40).optional(),
+    checkIn: dateInput("Indica la fecha de llegada."),
+    checkOut: dateInput("Indica la fecha de salida."),
+    guests: z.coerce.number().int().min(1, "Debe haber al menos un huésped.").max(50),
+    totalAmount: z.coerce.number().min(0, "El total no puede ser negativo.").max(99_999_999),
+    source: z.enum(["MANUAL", "DIRECT"]),
+    notes: z.string().trim().max(500).optional(),
   })
-  .refine((d) => nightsBetween(d.checkIn, d.checkOut) >= 1, {
-    message: "La salida debe ser al menos un día después de la entrada.",
-    path: ["checkOut"],
+  .refine((b) => parseDateInput(b.checkOut) > parseDateInput(b.checkIn), {
+    message: "La salida debe ser posterior a la llegada.",
   });
-
-type BookingInput = z.infer<typeof bookingSchema>;
-
-function readBooking(formData: FormData) {
-  const text = (key: string) => {
-    const value = formData.get(key);
-    return typeof value === "string" && value.trim() !== "" ? value : undefined;
-  };
-  return bookingSchema.safeParse({
-    unitId: text("unitId") ?? "",
-    source: text("source") ?? "MANUAL",
-    guestName: text("guestName") ?? "",
-    guestEmail: text("guestEmail"),
-    guestPhone: text("guestPhone"),
-    checkIn: text("checkIn") ?? "",
-    checkOut: text("checkOut") ?? "",
-    guests: text("guests") ?? 1,
-    totalAmount: text("totalAmount") ?? 0,
-    notes: text("notes"),
-  });
-}
-
-// ---------------------------------------------------------------- helpers
-
-async function findUnit(unitId: string, organizationId: string | null | undefined) {
-  return prisma.unit.findFirst({
-    where: {
-      id: unitId,
-      ...(organizationId ? { building: { organizationId } } : {}),
-    },
-    select: { id: true, code: true, building: { select: { id: true, name: true } } },
-  });
-}
-
-async function findBooking(bookingId: string, organizationId: string | null | undefined) {
-  if (!bookingId) return null;
-  return prisma.booking.findFirst({
-    where: {
-      id: bookingId,
-      ...(organizationId ? { unit: { building: { organizationId } } } : {}),
-    },
-    select: {
-      id: true,
-      unitId: true,
-      status: true,
-      guestName: true,
-      checkIn: true,
-      unit: { select: { code: true, building: { select: { name: true } } } },
-    },
-  });
-}
 
 /**
- * Busca otra reserva o un contrato vigente que comparta noches con la nueva
- * estancia. La consulta trae candidatos con un día de margen y la regla exacta
- * (el día de salida queda libre) se aplica con `staysOverlap`, para que no
- * dependa de la hora con que se guardó cada fecha.
+ * Por qué la unidad no puede recibir esa estancia, o null si puede: debe
+ * existir en la arrendadora, no estar en mantenimiento y no cruzarse con otra
+ * reserva confirmada ni con un contrato vigente o en borrador.
  */
-async function findConflict(
-  unitId: string,
-  checkIn: string,
-  checkOut: string,
-  excludeBookingId?: string,
-): Promise<string | null> {
-  const windowStart = new Date(dayToDate(checkIn).getTime() - 86_400_000 * 2);
-  const windowEnd = new Date(dayToDate(checkOut).getTime() + 86_400_000 * 2);
-  const stay = { start: checkIn, end: checkOut };
+type Reader = Pick<OrgDb, "unit" | "booking" | "lease">;
 
-  const [bookings, leases] = await Promise.all([
-    prisma.booking.findMany({
+async function bookingConflictError(
+  db: Reader,
+  unitId: string,
+  checkIn: Date,
+  checkOut: Date,
+  /** Al editar, la propia reserva no cuenta como cruce. */
+  excludeBookingId?: string,
+) {
+  const unit = await db.unit.findUnique({ where: { id: unitId }, select: { status: true } });
+  if (!unit) return "No se encontró la unidad.";
+  if (unit.status === "MAINTENANCE") return "La unidad está en mantenimiento.";
+
+  const overlaps = { lt: checkOut };
+  const [booking, lease] = await Promise.all([
+    db.booking.findFirst({
       where: {
         unitId,
-        status: { not: "CANCELLED" },
-        checkIn: { lt: windowEnd },
-        checkOut: { gt: windowStart },
-        ...(excludeBookingId ? { NOT: { id: excludeBookingId } } : {}),
+        status: "CONFIRMED",
+        checkIn: overlaps,
+        checkOut: { gt: checkIn },
+        ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
       },
+      orderBy: { checkIn: "asc" },
       select: { guestName: true, checkIn: true, checkOut: true },
     }),
-    prisma.lease.findMany({
+    db.lease.findFirst({
       where: {
         unitId,
-        status: "ACTIVE",
-        startDate: { lt: windowEnd },
-        endDate: { gt: windowStart },
+        status: { in: ["ACTIVE", "DRAFT"] },
+        startDate: overlaps,
+        endDate: { gt: checkIn },
       },
-      select: { startDate: true, endDate: true, tenant: { select: { name: true } } },
+      select: { tenant: { select: { name: true } }, endDate: true },
     }),
   ]);
 
-  const booking = bookings.find((b) =>
-    staysOverlap(stay, { start: utcDay(b.checkIn), end: utcDay(b.checkOut) }),
-  );
   if (booking) {
-    return `Esas fechas se empalman con la reserva de ${booking.guestName} (${shortDate(booking.checkIn)} → ${shortDate(booking.checkOut)}).`;
+    return `Se cruza con la reserva de ${booking.guestName} (${shortDate(booking.checkIn)} → ${shortDate(booking.checkOut)}).`;
   }
-
-  const lease = leases.find((l) =>
-    staysOverlap(stay, { start: utcDay(l.startDate), end: utcDay(l.endDate) }),
-  );
   if (lease) {
-    return `Esas fechas se empalman con el contrato vigente de ${lease.tenant.name} (${shortDate(lease.startDate)} → ${shortDate(lease.endDate)}).`;
+    return `La unidad está rentada a ${lease.tenant.name} hasta el ${shortDate(lease.endDate)}.`;
   }
-
   return null;
 }
 
-function bookingData(input: BookingInput) {
-  return {
-    unitId: input.unitId,
-    source: input.source,
-    guestName: input.guestName,
-    guestEmail: input.guestEmail ?? null,
-    guestPhone: input.guestPhone ?? null,
-    checkIn: dayToDate(input.checkIn),
-    checkOut: dayToDate(input.checkOut),
-    guests: input.guests,
-    totalAmount: input.totalAmount,
-    notes: input.notes ?? null,
-  };
+function readBooking(formData: FormData) {
+  return bookingSchema.safeParse({
+    unitId: formData.get("unitId"),
+    guestName: formData.get("guestName"),
+    guestEmail: formData.get("guestEmail") || undefined,
+    guestPhone: formData.get("guestPhone") || undefined,
+    checkIn: formData.get("checkIn"),
+    checkOut: formData.get("checkOut"),
+    guests: formData.get("guests") || 1,
+    totalAmount: formData.get("totalAmount"),
+    source: formData.get("source") || "MANUAL",
+    notes: formData.get("notes") || undefined,
+  });
 }
 
-function refresh(unitId: string, bookingId?: string) {
+function refreshBooking(...unitIds: string[]) {
   revalidatePath("/calendario");
-  revalidatePath("/reservas");
-  revalidatePath(`/unidades/${unitId}`);
+  revalidatePath("/reservas", "layout");
+  revalidatePath("/captura", "layout");
+  for (const unitId of new Set(unitIds)) revalidatePath(`/unidades/${unitId}`);
   revalidatePath("/dashboard");
-  if (bookingId) revalidatePath(`/reservas/${bookingId}`);
+  revalidatePath("/hoy");
 }
-
-/** Calendario en el mes de llegada y en la propiedad de la reserva. */
-function calendarUrl(checkIn: string, buildingId: string) {
-  return `/calendario?mes=${checkIn.slice(0, 7)}&edificio=${buildingId}`;
-}
-
-// ---------------------------------------------------------------- crear
 
 export async function createBooking(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const session = await requireUserAction(["OWNER", "ADMIN"]);
+  const { session, orgId, db } = await requireOrgUserAction(BOOKING_ROLES);
 
   const parsed = readBooking(formData);
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Revisa los datos de la reserva." };
+    return { error: parsed.error.issues[0]?.message ?? "Revisa los datos." };
   }
-  const input = parsed.data;
 
-  const unit = await findUnit(input.unitId, session.organizationId);
-  if (!unit) return { error: "La unidad seleccionada no pertenece a tu organización." };
+  const data = parsed.data;
+  const checkIn = parseDateInput(data.checkIn);
+  const checkOut = parseDateInput(data.checkOut);
 
-  const conflict = await findConflict(unit.id, input.checkIn, input.checkOut);
-  if (conflict) return { error: conflict };
+  // Captura solo registra en sus propiedades.
+  if (!(await canUseUnit(db, session, data.unitId))) return { error: "No se encontró la unidad." };
 
-  const booking = await prisma.booking.create({
-    data: { ...bookingData(input), status: "CONFIRMED" },
-    select: { id: true },
+  // Validar y crear bajo un candado de la unidad: dos capturas simultáneas de
+  // las mismas fechas no deben pasar ambas la comprobación.
+  const result = await db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${data.unitId}))`;
+    const conflict = await bookingConflictError(tx, data.unitId, checkIn, checkOut);
+    if (conflict) return { error: conflict };
+
+    const booking = await tx.booking.create({
+      data: {
+        organizationId: orgId,
+        unitId: data.unitId,
+        source: data.source,
+        guestName: data.guestName,
+        guestEmail: data.guestEmail ?? null,
+        guestPhone: data.guestPhone ?? null,
+        checkIn,
+        checkOut,
+        guests: data.guests,
+        totalAmount: data.totalAmount,
+        notes: data.notes ?? null,
+      },
+      select: { id: true },
+    });
+    return { id: booking.id };
   });
 
+  if ("error" in result) return { error: result.error };
+
   await logAction(
+    db,
     session.sub,
     "Alta de reserva",
     "Booking",
-    booking.id,
-    `${unit.building.name} ${unit.code} · ${input.guestName} · ${input.checkIn} → ${input.checkOut}`,
-    session.organizationId,
+    result.id,
+    `${data.guestName}: ${data.checkIn} → ${data.checkOut}`,
   );
 
-  refresh(unit.id, booking.id);
-  redirect(calendarUrl(input.checkIn, unit.building.id));
-}
-
-// ---------------------------------------------------------------- editar
-
-export async function updateBooking(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  const session = await requireUserAction(["OWNER", "ADMIN"]);
-
-  const existing = await findBooking(String(formData.get("bookingId") ?? ""), session.organizationId);
-  if (!existing) return { error: "Reserva no encontrada o sin permisos." };
-  if (existing.status === "CANCELLED") {
-    return { error: "Esta reserva está cancelada. Captura una nueva si el huésped vuelve." };
-  }
-
-  const parsed = readBooking(formData);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Revisa los datos de la reserva." };
-  }
-  const input = parsed.data;
-
-  const unit = await findUnit(input.unitId, session.organizationId);
-  if (!unit) return { error: "La unidad seleccionada no pertenece a tu organización." };
-
-  const conflict = await findConflict(unit.id, input.checkIn, input.checkOut, existing.id);
-  if (conflict) return { error: conflict };
-
-  await prisma.booking.update({
-    where: { id: existing.id },
-    data: bookingData(input),
-  });
-
-  await logAction(
-    session.sub,
-    "Edición de reserva",
-    "Booking",
-    existing.id,
-    `${unit.building.name} ${unit.code} · ${input.guestName} · ${input.checkIn} → ${input.checkOut}`,
-    session.organizationId,
-  );
-
-  refresh(existing.unitId, existing.id);
-  if (existing.unitId !== unit.id) refresh(unit.id);
+  refreshBooking(data.unitId);
   return { ok: true };
 }
 
-// ---------------------------------------------------------------- cancelar
+/**
+ * Corrige una reserva capturada aquí: huésped, fechas, unidad, total o notas.
+ * Las de Airbnb se corrigen en Airbnb. Si cambian la salida o la unidad, la
+ * limpieza pendiente de esa salida se mueve con la reserva.
+ */
+export async function updateBooking(bookingId: string, formData: FormData): Promise<ActionResult> {
+  const { session, db } = await requireOrgUserAction(BOOKING_ROLES);
 
-/** La reserva no se borra: queda cancelada para conservar el historial. */
-export async function cancelBooking(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  const session = await requireUserAction(["OWNER", "ADMIN"]);
+  const parsed = readBooking(formData);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Revisa los datos." };
+  }
+  const data = parsed.data;
+  const checkIn = parseDateInput(data.checkIn);
+  const checkOut = parseDateInput(data.checkOut);
 
-  const booking = await findBooking(String(formData.get("bookingId") ?? ""), session.organizationId);
-  if (!booking) return { error: "Reserva no encontrada o sin permisos." };
-  if (booking.status === "CANCELLED") return { error: "Esta reserva ya estaba cancelada." };
+  const current = await db.booking.findUnique({
+    where: { id: bookingId },
+    select: { status: true, source: true, unitId: true },
+  });
+  // Captura: la reserva y la unidad a la que se mueve deben ser de sus
+  // propiedades; una ajena responde como inexistente.
+  if (!current || !(await canUseUnit(db, session, current.unitId))) {
+    return { error: "No se encontró la reserva." };
+  }
+  if (!(await canUseUnit(db, session, data.unitId))) return { error: "No se encontró la unidad." };
+  if (current.source === "AIRBNB") {
+    return { error: "Las reservas de Airbnb se corrigen desde Airbnb." };
+  }
+  if (current.status !== "CONFIRMED") {
+    return { error: "Esta reserva ya no está confirmada. Captura una nueva si el huésped vuelve." };
+  }
 
-  await prisma.booking.update({
-    where: { id: booking.id },
-    data: { status: "CANCELLED" },
+  // Mismo candado que el alta. Si cambia de unidad, se toman las dos en el
+  // mismo orden siempre para que dos ediciones cruzadas no se bloqueen.
+  const units = [...new Set([current.unitId, data.unitId])].sort();
+  const result = await db.$transaction(async (tx) => {
+    for (const unitId of units) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${unitId}))`;
+    }
+    const conflict = await bookingConflictError(tx, data.unitId, checkIn, checkOut, bookingId);
+    if (conflict) return { error: conflict };
+
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: {
+        unitId: data.unitId,
+        source: data.source,
+        guestName: data.guestName,
+        guestEmail: data.guestEmail ?? null,
+        guestPhone: data.guestPhone ?? null,
+        checkIn,
+        checkOut,
+        guests: data.guests,
+        totalAmount: data.totalAmount,
+        notes: data.notes ?? null,
+      },
+    });
+    await tx.task.updateMany({
+      where: { bookingId, status: "OPEN" },
+      data: {
+        unitId: data.unitId,
+        dueDate: checkOut,
+        title: `Limpieza tras la salida de ${data.guestName}`,
+      },
+    });
+    return { ok: true as const };
   });
 
+  if ("error" in result) return { error: result.error };
+
   await logAction(
+    db,
     session.sub,
-    "Cancelación de reserva",
+    "Edición de reserva",
     "Booking",
-    booking.id,
-    `${booking.unit.building.name} ${booking.unit.code} · ${booking.guestName} · llegada ${utcDay(booking.checkIn)}`,
-    session.organizationId,
+    bookingId,
+    `${data.guestName}: ${data.checkIn} → ${data.checkOut}`,
   );
 
-  refresh(booking.unitId, booking.id);
+  refreshBooking(current.unitId, data.unitId);
+  revalidatePath("/tareas");
+  revalidatePath("/operacion");
+  return { ok: true };
+}
+
+/** Cancela una reserva capturada aquí. Las de Airbnb se cancelan en Airbnb. */
+export async function cancelBooking(bookingId: string): Promise<ActionResult> {
+  const { session, db } = await requireOrgUserAction(BOOKING_ROLES);
+
+  const booking = await db.booking.findUnique({
+    where: { id: bookingId },
+    select: { status: true, source: true, unitId: true, guestName: true },
+  });
+  if (!booking || !(await canUseUnit(db, session, booking.unitId))) {
+    return { error: "No se encontró la reserva." };
+  }
+  if (booking.source === "AIRBNB") {
+    return { error: "Las reservas de Airbnb se cancelan desde Airbnb." };
+  }
+  if (booking.status !== "CONFIRMED") {
+    return { error: "Esta reserva ya no está confirmada." };
+  }
+
+  // La limpieza de esa salida ya no hace falta: se cancela con la reserva.
+  await db.$transaction(async (tx) => {
+    await tx.booking.update({ where: { id: bookingId }, data: { status: "CANCELLED" } });
+    await tx.task.updateMany({
+      where: { bookingId, status: "OPEN" },
+      data: { status: "CANCELLED", cancelReason: "Se canceló la reserva" },
+    });
+  });
+  await logAction(db, session.sub, "Cancelación de reserva", "Booking", bookingId, booking.guestName);
+
+  refreshBooking(booking.unitId);
+  revalidatePath("/tareas");
+  revalidatePath("/operacion");
   return { ok: true };
 }

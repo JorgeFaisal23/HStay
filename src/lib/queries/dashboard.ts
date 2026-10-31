@@ -1,5 +1,6 @@
-import { prisma } from "@/lib/prisma";
+import type { OrgDb } from "@/lib/db/scoped";
 import { periodKey, toNumber, daysBetween } from "@/lib/format";
+import { ACCOUNT_CURRENCY, accountCurrency, totalByCurrency } from "@/lib/currency";
 
 /**
  * Consultas del resumen. Todo el cálculo vive aquí para que la página solo se
@@ -8,20 +9,13 @@ import { periodKey, toNumber, daysBetween } from "@/lib/format";
 
 const DAYS_BEFORE_EXPIRY_WARNING = 60;
 
-export async function getDashboardData(organizationId?: string | null) {
+export async function getDashboardData(db: OrgDb) {
   const now = new Date();
   const period = periodKey(now);
 
-  const orgFilter = organizationId ? { organizationId } : undefined;
-  const buildingFilter = organizationId ? { building: orgFilter } : undefined;
-  const unitBuildingFilter = organizationId
-    ? { unit: { building: orgFilter } }
-    : undefined;
-
   const [units, rentCharges, serviceCharges, leases, upcomingBookings, serviceAccounts] =
     await Promise.all([
-      prisma.unit.findMany({
-        where: buildingFilter,
+      db.unit.findMany({
         select: {
           id: true,
           code: true,
@@ -30,45 +24,21 @@ export async function getDashboardData(organizationId?: string | null) {
           building: { select: { id: true, name: true } },
         },
       }),
-      prisma.rentCharge.findMany({
-        where: {
-          period,
-          ...(organizationId
-            ? { lease: { unit: { building: orgFilter } } }
-            : {}),
-        },
+      db.rentCharge.findMany({
+        where: { period },
         select: {
           amount: true,
           paidAmount: true,
           status: true,
-          lease: {
-            select: {
-              unit: { select: { currency: true } },
-            },
-          },
+          lease: { select: { unit: { select: { building: { select: { currency: true } } } } } },
         },
       }),
-      prisma.serviceCharge.findMany({
-        where: {
-          period,
-          ...(organizationId
-            ? {
-                serviceAccount: {
-                  OR: [
-                    { building: orgFilter },
-                    { unit: { building: orgFilter } },
-                  ],
-                },
-              }
-            : {}),
-        },
-        select: { amount: true },
+      db.serviceCharge.findMany({
+        where: { period },
+        select: { amount: true, serviceAccount: { select: ACCOUNT_CURRENCY } },
       }),
-      prisma.lease.findMany({
-        where: {
-          status: "ACTIVE",
-          ...unitBuildingFilter,
-        },
+      db.lease.findMany({
+        where: { status: "ACTIVE" },
         select: {
           id: true,
           endDate: true,
@@ -79,12 +49,8 @@ export async function getDashboardData(organizationId?: string | null) {
         },
         orderBy: { endDate: "asc" },
       }),
-      prisma.booking.findMany({
-        where: {
-          checkIn: { gte: now },
-          status: "CONFIRMED",
-          ...unitBuildingFilter,
-        },
+      db.booking.findMany({
+        where: { checkIn: { gte: now }, status: "CONFIRMED" },
         select: {
           id: true,
           guestName: true,
@@ -93,25 +59,13 @@ export async function getDashboardData(organizationId?: string | null) {
           source: true,
           totalAmount: true,
           unit: {
-            select: { id: true, code: true, building: { select: { name: true } } },
+            select: { id: true, code: true, building: { select: { name: true, currency: true } } },
           },
         },
         orderBy: { checkIn: "asc" },
         take: 6,
       }),
-      prisma.serviceAccount.count({
-        where: {
-          active: true,
-          ...(organizationId
-            ? {
-                OR: [
-                  { building: orgFilter },
-                  { unit: { building: orgFilter } },
-                ],
-              }
-            : {}),
-        },
-      }),
+      db.serviceAccount.count({ where: { active: true } }),
     ]);
 
   const totalUnits = units.length;
@@ -119,46 +73,24 @@ export async function getDashboardData(organizationId?: string | null) {
     (u) => u.status === "OCCUPIED" || u.status === "SHORT_TERM",
   ).length;
 
-  const expectedIncomeMXN = rentCharges
-    .filter((c) => c.lease.unit.currency === "MXN")
-    .reduce((sum, c) => sum + toNumber(c.amount), 0);
-  const expectedIncomeUSD = rentCharges
-    .filter((c) => c.lease.unit.currency === "USD")
-    .reduce((sum, c) => sum + toNumber(c.amount), 0);
-  const expectedIncome = rentCharges.reduce((sum, c) => sum + toNumber(c.amount), 0);
-
-  const collectedMXN = rentCharges
-    .filter((c) => c.lease.unit.currency === "MXN")
-    .reduce((sum, c) => sum + toNumber(c.paidAmount), 0);
-  const collectedUSD = rentCharges
-    .filter((c) => c.lease.unit.currency === "USD")
-    .reduce((sum, c) => sum + toNumber(c.paidAmount), 0);
-  const collected = rentCharges.reduce((sum, c) => sum + toNumber(c.paidAmount), 0);
-
+  // Totales por moneda: nunca se suman pesos con dólares.
+  const rentCurrency = (c: (typeof rentCharges)[number]) => c.lease.unit.building.currency;
+  const expectedIncome = totalByCurrency(rentCharges, rentCurrency, (c) => toNumber(c.amount));
+  const collected = totalByCurrency(rentCharges, rentCurrency, (c) => toNumber(c.paidAmount));
   const overdue = rentCharges.filter((c) => c.status === "OVERDUE");
-  const overdueAmountMXN = overdue
-    .filter((c) => c.lease.unit.currency === "MXN")
-    .reduce(
-      (sum, c) => sum + toNumber(c.amount) - toNumber(c.paidAmount),
-      0,
-    );
-  const overdueAmountUSD = overdue
-    .filter((c) => c.lease.unit.currency === "USD")
-    .reduce(
-      (sum, c) => sum + toNumber(c.amount) - toNumber(c.paidAmount),
-      0,
-    );
-  const overdueAmount = overdue.reduce(
-    (sum, c) => sum + toNumber(c.amount) - toNumber(c.paidAmount),
-    0,
+  const overdueAmount = totalByCurrency(
+    overdue,
+    rentCurrency,
+    (c) => toNumber(c.amount) - toNumber(c.paidAmount),
   );
   const pendingCount = rentCharges.filter(
     (c) => c.status === "PENDING" || c.status === "PARTIAL",
   ).length;
 
-  const servicesTotal = serviceCharges.reduce(
-    (sum, c) => sum + toNumber(c.amount),
-    0,
+  const servicesTotal = totalByCurrency(
+    serviceCharges,
+    (c) => accountCurrency(c.serviceAccount),
+    (c) => toNumber(c.amount),
   );
 
   // Cuántas cuentas de servicio siguen sin monto capturado este mes.
@@ -195,15 +127,9 @@ export async function getDashboardData(organizationId?: string | null) {
     availableUnits: units.filter((u) => u.status === "AVAILABLE").length,
     maintenanceUnits: units.filter((u) => u.status === "MAINTENANCE").length,
     expectedIncome,
-    expectedIncomeMXN,
-    expectedIncomeUSD,
     collected,
-    collectedMXN,
-    collectedUSD,
     overdueCount: overdue.length,
     overdueAmount,
-    overdueAmountMXN,
-    overdueAmountUSD,
     pendingCount,
     servicesTotal,
     servicesMissing: Math.max(0, servicesMissing),
@@ -224,6 +150,7 @@ export async function getDashboardData(organizationId?: string | null) {
       checkOut: b.checkOut,
       source: b.source,
       totalAmount: toNumber(b.totalAmount),
+      currency: b.unit.building.currency,
       unitCode: b.unit.code,
       buildingName: b.unit.building.name,
     })),

@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import type { OrgDb } from "@/lib/db/scoped";
+import type { StayRates } from "@/lib/rates";
 import { toNumber, periodKey } from "@/lib/format";
 
 /**
@@ -7,16 +8,36 @@ import { toNumber, periodKey } from "@/lib/format";
  * serialización.
  */
 
-export async function getBuildingsOverview(organizationId?: string | null) {
+/**
+ * Por qué ya no se puede cambiar la moneda de una propiedad, o null si se
+ * puede. Con montos guardados, cambiarla los reinterpretaría (10,000 pesos
+ * pasarían a ser 10,000 dólares), así que solo se elige mientras no haya
+ * dinero registrado.
+ */
+export async function currencyLockReason(db: OrgDb, buildingId: string): Promise<string | null> {
+  const unit = { buildingId };
+  const [leases, bookings, serviceCharges, expenses, payouts] = await Promise.all([
+    db.lease.count({ where: { unit } }),
+    db.booking.count({ where: { unit } }),
+    db.serviceCharge.count({
+      where: { serviceAccount: { OR: [{ buildingId }, { unit }] } },
+    }),
+    db.expense.count({ where: { unit } }),
+    db.ownerPayout.count({ where: { buildingId } }),
+  ]);
+  if (leases + bookings + serviceCharges + expenses + payouts === 0) return null;
+  return "Ya tiene contratos, reservas, cargos o gastos registrados en esta moneda; cambiarla cambiaría el valor de esos montos.";
+}
+
+export async function getBuildingsOverview(db: OrgDb) {
   const now = new Date();
   const period = periodKey(now);
 
-  const buildings = await prisma.building.findMany({
-    where: organizationId ? { organizationId } : undefined,
+  const buildings = await db.building.findMany({
     orderBy: { name: "asc" },
     include: {
       units: {
-        select: { id: true, status: true, baseRent: true, currency: true },
+        select: { id: true, status: true, baseRent: true },
       },
       serviceAccounts: {
         select: {
@@ -30,14 +51,8 @@ export async function getBuildingsOverview(organizationId?: string | null) {
 
   // El gasto en servicios de un edificio incluye lo facturado a nivel edificio
   // más lo de cada una de sus unidades.
-  const unitCharges = await prisma.serviceCharge.findMany({
-    where: {
-      period,
-      serviceAccount: {
-        scope: "UNIT",
-        ...(organizationId ? { unit: { building: { organizationId } } } : {}),
-      },
-    },
+  const unitCharges = await db.serviceCharge.findMany({
+    where: { period, serviceAccount: { scope: "UNIT" } },
     select: {
       amount: true,
       serviceAccount: {
@@ -47,12 +62,12 @@ export async function getBuildingsOverview(organizationId?: string | null) {
   });
 
   const unitServiceTotals = new Map<string, number>();
-  for (const c of unitCharges) {
-    const bId = c.serviceAccount.unit?.buildingId;
-    if (!bId) continue;
+  for (const charge of unitCharges) {
+    const buildingId = charge.serviceAccount.unit?.buildingId;
+    if (!buildingId) continue;
     unitServiceTotals.set(
-      bId,
-      (unitServiceTotals.get(bId) ?? 0) + toNumber(c.amount),
+      buildingId,
+      (unitServiceTotals.get(buildingId) ?? 0) + toNumber(charge.amount),
     );
   }
 
@@ -74,6 +89,7 @@ export async function getBuildingsOverview(organizationId?: string | null) {
       address: building.address,
       city: building.city,
       notes: building.notes,
+      currency: building.currency,
       totalUnits: total,
       occupiedUnits: occupied,
       availableUnits: building.units.filter((u) => u.status === "AVAILABLE").length,
@@ -81,30 +97,19 @@ export async function getBuildingsOverview(organizationId?: string | null) {
       monthlyRent: building.units
         .filter((u) => u.status === "OCCUPIED")
         .reduce((sum, u) => sum + toNumber(u.baseRent), 0),
-      monthlyRentMXN: building.units
-        .filter((u) => u.status === "OCCUPIED" && u.currency === "MXN")
-        .reduce((sum, u) => sum + toNumber(u.baseRent), 0),
-      monthlyRentUSD: building.units
-        .filter((u) => u.status === "OCCUPIED" && u.currency === "USD")
-        .reduce((sum, u) => sum + toNumber(u.baseRent), 0),
       servicesThisMonth:
         buildingServices + (unitServiceTotals.get(building.id) ?? 0),
     };
   });
 }
 
-export async function getBuildingDetail(
-  buildingId: string,
-  organizationId?: string | null,
-) {
+export async function getBuildingDetail(db: OrgDb, buildingId: string) {
   const now = new Date();
 
-  const building = await prisma.building.findFirst({
-    where: {
-      id: buildingId,
-      ...(organizationId ? { organizationId } : {}),
-    },
+  const building = await db.building.findUnique({
+    where: { id: buildingId },
     include: {
+      owner: { select: { id: true, name: true, active: true } },
       serviceAccounts: {
         where: { scope: "BUILDING" },
         orderBy: { type: "asc" },
@@ -135,6 +140,9 @@ export async function getBuildingDetail(
     address: building.address,
     city: building.city,
     notes: building.notes,
+    currency: building.currency,
+    owner: building.owner,
+    ownerSince: building.ownerSince,
     serviceAccounts: building.serviceAccounts.map((a) => ({
       id: a.id,
       type: a.type,
@@ -152,10 +160,10 @@ export async function getBuildingDetail(
         name: unit.name,
         type: unit.type,
         status: unit.status,
-        currency: unit.currency,
         floor: unit.floor,
         sizeM2: unit.sizeM2,
         baseRent: toNumber(unit.baseRent),
+        nightlyRate: unit.nightlyRate === null ? null : toNumber(unit.nightlyRate),
         tenantName: lease?.tenant.name ?? null,
         tenantId: lease?.tenant.id ?? null,
         leaseEndDate: lease?.endDate ?? null,
@@ -167,17 +175,11 @@ export async function getBuildingDetail(
   };
 }
 
-export async function getUnitDetail(
-  unitId: string,
-  organizationId?: string | null,
-) {
+export async function getUnitDetail(db: OrgDb, unitId: string) {
   const now = new Date();
 
-  const unit = await prisma.unit.findFirst({
-    where: {
-      id: unitId,
-      ...(organizationId ? { building: { organizationId } } : {}),
-    },
+  const unit = await db.unit.findUnique({
+    where: { id: unitId },
     include: {
       building: {
         include: {
@@ -196,7 +198,7 @@ export async function getUnitDetail(
         },
       },
       bookings: {
-        where: { checkOut: { gte: now } },
+        where: { checkOut: { gte: now }, status: "CONFIRMED" },
         orderBy: { checkIn: "asc" },
         take: 10,
       },
@@ -213,14 +215,13 @@ export async function getUnitDetail(
     name: unit.name,
     type: unit.type,
     status: unit.status,
-    currency: unit.currency,
     floor: unit.floor,
     bedrooms: unit.bedrooms,
     bathrooms: unit.bathrooms,
     sizeM2: unit.sizeM2,
     baseRent: toNumber(unit.baseRent),
-    nightlyPrice: unit.nightlyPrice ? toNumber(unit.nightlyPrice) : null,
-    weeklyPrice: unit.weeklyPrice ? toNumber(unit.weeklyPrice) : null,
+    rates: stayRatesOf(unit),
+    currency: unit.building.currency,
     description: unit.description,
     building: {
       id: unit.building.id,
@@ -282,6 +283,9 @@ export async function getUnitDetail(
     bookings: unit.bookings.map((b) => ({
       id: b.id,
       guestName: b.guestName,
+      guestEmail: b.guestEmail,
+      guestPhone: b.guestPhone,
+      notes: b.notes,
       source: b.source,
       checkIn: b.checkIn,
       checkOut: b.checkOut,
@@ -292,10 +296,45 @@ export async function getUnitDetail(
   };
 }
 
-export async function getBuildingsForSelect(organizationId?: string | null) {
-  return prisma.building.findMany({
-    where: organizationId ? { organizationId } : undefined,
-    select: { id: true, name: true },
+export async function getBuildingsForSelect(db: OrgDb) {
+  // Con la moneda: el formulario de unidad la muestra junto a la renta.
+  return db.building.findMany({
+    select: { id: true, name: true, currency: true },
     orderBy: { name: "asc" },
   });
+}
+
+/** Unidades que pueden recibir una reserva corta (todas menos las de mantenimiento). */
+export async function getBookableUnits(db: OrgDb, buildingIds?: string[]) {
+  const units = await db.unit.findMany({
+    where: {
+      status: { not: "MAINTENANCE" },
+      // Captura: solo sus propiedades.
+      ...(buildingIds ? { buildingId: { in: buildingIds } } : {}),
+    },
+    orderBy: [{ building: { name: "asc" } }, { code: "asc" }],
+    select: {
+      id: true,
+      code: true,
+      nightlyRate: true,
+      weeklyRate: true,
+      monthlyRate: true,
+      building: { select: { name: true, currency: true } },
+    },
+  });
+
+  return units.map((unit) => ({
+    id: unit.id,
+    label: `${unit.building.name} · ${unit.code}`,
+    rates: stayRatesOf(unit),
+    currency: unit.building.currency,
+  }));
+}
+
+type Decimalish = { toString(): string } | null;
+
+/** Tarifas de estancia de una unidad como números (nulas si no hay). */
+export function stayRatesOf(unit: { nightlyRate: Decimalish; weeklyRate: Decimalish; monthlyRate: Decimalish }): StayRates {
+  const value = (rate: Decimalish) => (rate === null ? null : toNumber(rate));
+  return { nightly: value(unit.nightlyRate), weekly: value(unit.weeklyRate), monthly: value(unit.monthlyRate) };
 }

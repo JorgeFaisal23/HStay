@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { Inter, Poppins, Source_Sans_3 } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuroraBackground } from "@/components/shared/aurora-background";
 import { Toaster } from "@/components/ui/sonner";
 import { APP } from "@/lib/app";
+import { AURORA_INIT_SCRIPT } from "@/lib/aurora";
 import { brandStyleSheet } from "@/lib/brand";
-import { getSession } from "@/lib/auth/session";
-import { getOrganization } from "@/lib/org";
+import { getCurrentBrand } from "@/lib/org";
 import "./globals.css";
 
 // Las tres fuentes se cargan siempre; el panel de marca solo decide a cuál
@@ -30,11 +31,11 @@ const sourceSans = Source_Sans_3({
 /**
  * Dos identidades conviven en los metadatos: el título es la marca del
  * arrendador —es lo que el inquilino reconoce en la pestaña— y
- * `applicationName` es el SaaS (RentaCore), que es el software que sirve la página.
+ * `applicationName` es el producto (APP.name), el software que sirve la página. El
+ * nombre del producto no se mete en el título para no competir con la marca.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const session = await getSession();
-  const org = await getOrganization(session?.organizationId);
+  const org = await getCurrentBrand();
   return {
     title: {
       default: org.brandName,
@@ -43,6 +44,8 @@ export async function generateMetadata(): Promise<Metadata> {
     description: APP.description,
     applicationName: APP.name,
     generator: APP.name,
+    // El nombre corto del atajo en iOS: ahí sí manda la marca del arrendador,
+    // porque el icono vive en la pantalla de inicio del inquilino.
     appleWebApp: { title: org.brandName },
   };
 }
@@ -50,8 +53,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const session = await getSession();
-  const org = await getOrganization(session?.organizationId);
+  const org = await getCurrentBrand();
   const brandCss = brandStyleSheet({
     primaryColor: org.primaryColor,
     radius: org.radius,
@@ -73,6 +75,11 @@ export default async function RootLayout({
           id="brand-tokens"
           dangerouslySetInnerHTML={{ __html: brandCss }}
         />
+        {/* Intensidad de la aurora que eligió el usuario (en su navegador),
+            aplicada antes del primer pintado para que no parpadee. */}
+        <script dangerouslySetInnerHTML={{ __html: AURORA_INIT_SCRIPT }} />
+        {/* Fondo de toda la app (DESIGN.md §16): fijo, detrás de todo. */}
+        <AuroraBackground />
         <ThemeProvider>{children}</ThemeProvider>
         <Toaster position="top-right" richColors />
       </body>

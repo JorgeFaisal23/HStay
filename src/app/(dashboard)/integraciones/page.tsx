@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ExternalLink, Info, Plug, Wifi } from "lucide-react";
+import { ExternalLink, Plug, Wifi } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ButtonLink } from "@/components/shared/button-link";
+import { Callout } from "@/components/shared/callout";
 import {
   Card,
   CardContent,
@@ -12,22 +13,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth/session";
+import { requireOrgUser } from "@/lib/auth/session";
 import { canEdit } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
 import { shortDate } from "@/lib/format";
+import { BOOKING_SOURCE_CLASSES } from "@/lib/labels";
+import { cn } from "@/lib/utils";
 import { SyncButton } from "./sync-button";
 
 export const metadata: Metadata = { title: "Integraciones" };
 
 export default async function IntegrationsPage() {
-  const session = await requireUser(["OWNER", "ADMIN"]);
+  const { session, db } = await requireOrgUser(["OWNER", "ADMIN"]);
   const editable = canEdit(session.role);
 
-  const connections = await prisma.airbnbConnection.findMany({
-    where: session.organizationId
-      ? { unit: { building: { organizationId: session.organizationId } } }
-      : undefined,
+  const connections = await db.airbnbConnection.findMany({
     orderBy: { listingName: "asc" },
     select: {
       id: true,
@@ -68,24 +67,18 @@ export default async function IntegrationsPage() {
       />
 
       {/* Aviso honesto sobre el alcance de la demo. */}
-      <div className="flex gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
-        <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-        <div className="space-y-1">
-          <p className="font-medium">Sincronización simulada en esta demostración</p>
-          <p className="text-pretty">
-            Airbnb no ofrece una API pública de reservas; la vía real es importar
-            el enlace iCal de cada anuncio, que es unidireccional y se actualiza
-            cada cierto tiempo. La plataforma ya guarda ese enlace por unidad y
-            el importador está listo para conectarse.
-          </p>
-        </div>
-      </div>
+      <Callout tone="info" title="Sincronización simulada en esta demostración">
+        Airbnb no ofrece una API pública de reservas; la vía real es importar el
+        enlace iCal de cada anuncio, que es unidireccional y se actualiza cada
+        cierto tiempo. La plataforma ya guarda ese enlace por unidad y el
+        importador está listo para conectarse.
+      </Callout>
 
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <span className="flex size-10 items-center justify-center rounded-md bg-rose-500 text-white">
+              <span className={cn("flex size-10 items-center justify-center rounded-md", BOOKING_SOURCE_CLASSES.AIRBNB)}>
                 <Wifi className="size-5" aria-hidden />
               </span>
               <div>

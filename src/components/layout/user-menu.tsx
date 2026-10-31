@@ -1,7 +1,8 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { ChevronsUpDown, LogOut, Moon, Sun } from "lucide-react";
+import Link from "next/link";
+import { ChevronsUpDown, LogOut, Moon, Sun, UserRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ import { initials } from "@/lib/format";
 import { ROLE_LABELS } from "@/lib/labels";
 import type { Role } from "@/lib/auth/jwt";
 import { logout } from "@/app/login/actions";
+import { AuroraMenuGroup } from "@/components/layout/aurora-menu";
 
 export function UserMenu({
   user,
@@ -65,6 +67,10 @@ export function UserMenu({
               </p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem render={<Link href="/cuenta" />}>
+              <UserRound className="size-4" aria-hidden />
+              Mi cuenta
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setTheme(isDark ? "light" : "dark")}
             >
@@ -75,6 +81,8 @@ export function UserMenu({
               )}
               {isDark ? "Tema claro" : "Tema oscuro"}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <AuroraMenuGroup />
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {

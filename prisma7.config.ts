@@ -1,10 +1,13 @@
-import "dotenv/config";
+import "./prisma/env";
 import { defineConfig } from "prisma/config";
 
 /**
  * Prisma 7 lee las URLs de conexión desde aquí (ya no desde schema.prisma).
- * Para DDL usamos la conexión directa de Neon (sin pooler): pgbouncer no
- * soporta los comandos que Prisma necesita para crear o alterar tablas.
+ * Para migrar se prefiere DIRECT_URL: si la app pasa por un pooler de
+ * conexiones, las migraciones necesitan una conexión directa a PostgreSQL.
+ *
+ * `migrate dev` necesita una base auxiliar vacía (shadow) para calcular
+ * diferencias; solo se usa en desarrollo.
  */
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -13,5 +16,6 @@ export default defineConfig({
   },
   datasource: {
     url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
+    shadowDatabaseUrl: process.env["SHADOW_DATABASE_URL"],
   },
 });

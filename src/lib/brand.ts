@@ -1,4 +1,5 @@
 import type { BorderRadius } from "@/generated/prisma/enums";
+import { APP } from "@/lib/app";
 
 /**
  * Traduce la identidad de marca guardada en la base de datos a variables CSS.
@@ -46,6 +47,24 @@ export const BRAND_PRESETS = [
 
 export const DEFAULT_BRAND: BrandInput = {
   primaryColor: "#0F766E",
+  radius: "SOFT",
+  fontFamily: "Inter",
+};
+
+/** Lo que hace falta para vestir una pantalla: tokens + nombre y logo. */
+export type BrandIdentity = BrandInput & {
+  brandName: string;
+  logoUrl: string | null;
+};
+
+/**
+ * Marca del producto. Se usa donde no hay una arrendadora en contexto: el
+ * acceso genérico /login, el panel de plataforma y las páginas de error.
+ */
+export const APP_BRAND: BrandIdentity = {
+  brandName: APP.name,
+  logoUrl: null,
+  primaryColor: APP.color,
   radius: "SOFT",
   fontFamily: "Inter",
 };
@@ -163,7 +182,7 @@ export function brandStyleSheet(brand: BrandInput) {
   --sidebar-primary: ${primary};
   --sidebar-primary-foreground: ${foreground};
   --sidebar-ring: ${primary};
-  --brand-soft: ${shift(primary, 0.9)};
+  --brand-soft: color-mix(in oklch, ${primary} 12%, transparent);
   --brand-strong: ${shift(primary, -0.2)};
   --chart-1: ${primary};
   --chart-2: ${shift(primary, 0.3)};
@@ -177,7 +196,7 @@ html.dark {
   --ring: ${shift(primary, 0.18)};
   --sidebar-primary: ${shift(primary, 0.18)};
   --sidebar-primary-foreground: ${readableForeground(shift(primary, 0.18))};
-  --brand-soft: ${shift(primary, -0.55)};
+  --brand-soft: color-mix(in oklch, ${shift(primary, 0.18)} 18%, transparent);
   --brand-strong: ${shift(primary, 0.35)};
   --chart-1: ${shift(primary, 0.18)};
   --chart-2: ${shift(primary, 0.4)};

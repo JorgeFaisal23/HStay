@@ -10,8 +10,8 @@ import { periodKey, periodLabel, shiftPeriod } from "@/lib/format";
 const PERIOD_PATTERN = /^\d{4}-\d{2}$/;
 
 /**
- * Navegación del calendario: mes anterior/siguiente, salto directo a
- * cualquier mes, búsqueda por huésped o unidad y filtro por propiedad.
+ * Navegación del calendario: mes anterior y siguiente, salto directo a
+ * cualquier mes, filtro por propiedad y búsqueda por persona o unidad.
  */
 export function CalendarToolbar({
   period,
@@ -49,7 +49,7 @@ export function CalendarToolbar({
         >
           <ChevronLeft className="size-4" aria-hidden />
         </Button>
-        {/* Selector de mes: también sirve para saltar directo a 2027. */}
+        {/* Selector de mes: también sirve para saltar directo a otro año. */}
         <Input
           type="month"
           aria-label={`Mes mostrado: ${periodLabel(period)}. Cambiar de mes`}
@@ -90,7 +90,7 @@ export function CalendarToolbar({
       </NativeSelect>
 
       <form
-        // key: si la búsqueda cambia por fuera (p. ej. "Limpiar"), el campo se reinicia.
+        // key: si la búsqueda cambia por fuera (p. ej. al quitarla), el campo se reinicia.
         key={search ?? ""}
         role="search"
         className="flex items-center gap-1"
@@ -103,8 +103,8 @@ export function CalendarToolbar({
         <Input
           name="q"
           type="search"
-          aria-label="Buscar huésped o unidad"
-          placeholder="Huésped o unidad"
+          aria-label="Buscar persona o unidad"
+          placeholder="Persona o unidad"
           defaultValue={search}
           className="w-44"
         />

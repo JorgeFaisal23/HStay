@@ -1,104 +1,47 @@
-# ==============================================================================
-# Orquestación de Producción: Next.js + PostgreSQL 16 + Caddy + Respaldos Diarios
-# ==============================================================================
+# App + PostgreSQL para el VPS.
+#
+#   cp .env.production.example .env.production   # y llénalo
+#   docker compose up -d --build
+#
+# Las migraciones se aplican solas al arrancar el contenedor de la app.
+# Si ya tienes un PostgreSQL propio, borra el servicio `db`, quita el
+# depends_on y apunta DATABASE_URL a tu base.
 
 services:
-  # 1. Base de Datos PostgreSQL 16 (Aislada, sin exponer puertos públicos)
   db:
-    image: postgres:16-alpine
-    container_name: rentacore_db
+    image: postgres:18
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-rentacore_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-rentacore_prod}
+      POSTGRES_DB: ${POSTGRES_DB:-apprentas}
+      POSTGRES_USER: ${POSTGRES_USER:-apprentas}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env.production}
     volumes:
-      - db_data:/var/lib/postgresql/data
-    networks:
-      - internal
+      - db-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rentacore_admin} -d ${POSTGRES_DB:-rentacore_prod}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 10
 
-  # 2. Aplicación Next.js (Standalone Container)
-  web:
+  app:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: rentacore_web
+      args:
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-HStay}
+        NEXT_PUBLIC_APP_TAGLINE: ${NEXT_PUBLIC_APP_TAGLINE:-Administración de rentas}
+        NEXT_PUBLIC_APP_COLOR: ${NEXT_PUBLIC_APP_COLOR:-#12263F}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+    image: apprentas:latest
     restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-apprentas}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-apprentas}
+      DIRECT_URL: postgresql://${POSTGRES_USER:-apprentas}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-apprentas}
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-rentacore_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rentacore_prod}?schema=public
-      DIRECT_URL: postgresql://${POSTGRES_USER:-rentacore_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rentacore_prod}?schema=public
-      AUTH_SECRET: ${AUTH_SECRET}
-      PORT: 3000
-    volumes:
-      - uploads_data:/app/public/uploads
-    expose:
-      - "3000"
-    networks:
-      - internal
-
-  # 3. Reverse Proxy Caddy con TLS Automático (Único servicio expuesto al exterior)
-  caddy:
-    image: caddy:2-alpine
-    container_name: rentacore_caddy
-    restart: unless-stopped
-    depends_on:
-      - web
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp" # Soporte para HTTP/3 (QUIC)
-    environment:
-      DOMAIN: ${DOMAIN:-localhost}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - internal
-
-  # 4. Tarea Cron de Respaldos Diarios de Base de Datos
-  db-backup:
-    image: postgres:16-alpine
-    container_name: rentacore_backup
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-rentacore_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-rentacore_prod}
-    volumes:
-      - ./scripts/backup-db.sh:/backup-db.sh:ro
-      - db_backups:/backups
-    networks:
-      - internal
-    # Ejecuta el respaldo cada noche a las 3:00 AM UTC
-    entrypoint: ["/bin/sh", "-c", "echo '0 3 * * * sh /backup-db.sh >> /var/log/cron.log 2>&1' > /etc/crontabs/root && crond -f -l 2"]
+      - "${APP_PORT:-3000}:3000"
 
 volumes:
-  db_data:
-    driver: local
-  db_backups:
-    driver: local
-  uploads_data:
-    driver: local
-  caddy_data:
-    driver: local
-  caddy_config:
-    driver: local
-
-networks:
-  internal:
-    driver: bridge
+  db-data:
