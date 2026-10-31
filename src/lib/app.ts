@@ -55,7 +55,7 @@ export const APP = {
    * Igual a la de package.json (lo vigila app.test.ts). Va escrita aquí para
    * no meter package.json completo en el código del navegador.
    */
-  version: "0.13.0",
+  version: "0.14.0",
   /** Sitio público del producto. Vacío mientras no exista. */
   url: env(process.env.NEXT_PUBLIC_APP_URL, ""),
   /**

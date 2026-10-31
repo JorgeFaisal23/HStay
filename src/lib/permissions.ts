@@ -14,6 +14,9 @@ export const OPERATIONS_PREFIX = "/operacion";
 /** Vista del propietario del inmueble: su estado de cuenta, solo lectura. */
 export const PROPERTY_OWNER_PREFIX = "/propietario";
 
+/** Vista de Captura: reservas de las propiedades asignadas. Es lo único que ve ese rol. */
+export const CAPTURE_PREFIX = "/captura";
+
 /** Panel de la plataforma: solo para SUPERADMIN. */
 export const SUPERADMIN_PREFIX = "/superadmin";
 
@@ -55,6 +58,9 @@ export function canAccessPath(role: Role, pathname: string) {
   // El propietario solo ve sus propiedades, y nadie más entra a su vista.
   if (role === "PROPERTY_OWNER") return under(pathname, PROPERTY_OWNER_PREFIX);
   if (under(pathname, PROPERTY_OWNER_PREFIX)) return false;
+  // Captura solo ve las reservas de sus propiedades, y nadie más entra a su vista.
+  if (role === "CAPTURE") return under(pathname, CAPTURE_PREFIX);
+  if (under(pathname, CAPTURE_PREFIX)) return false;
   if (role === "VIEWER") {
     return VIEWER_ALLOWED_PREFIXES.some((prefix) => under(pathname, prefix));
   }
@@ -72,5 +78,6 @@ export function homePathFor(role: Role) {
   if (role === "TENANT") return "/portal";
   if (role === "OPERATIONS") return OPERATIONS_PREFIX;
   if (role === "PROPERTY_OWNER") return PROPERTY_OWNER_PREFIX;
+  if (role === "CAPTURE") return CAPTURE_PREFIX;
   return role === "VIEWER" ? "/dashboard" : "/hoy";
 }

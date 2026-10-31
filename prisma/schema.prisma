@@ -77,6 +77,7 @@ model Organization {
   bookings          Booking[]
   airbnbConnections AirbnbConnection[]
   auditLogs         AuditLog[]
+  buildingAccess    BuildingAccess[]
 }
 
 // ---------------------------------------------------------------- Usuarios
@@ -88,6 +89,7 @@ enum Role {
   VIEWER // solo lectura: consulta del calendario
   OPERATIONS // personal de campo: ve y cierra las tareas que se le asignan
   PROPERTY_OWNER // propietario del inmueble: ve el estado de cuenta de sus propiedades
+  CAPTURE // captura: registra y corrige reservas solo de las propiedades que se le asignan
   TENANT // inquilino o huésped
 }
 
@@ -132,6 +134,8 @@ model User {
   expensesReviewed Expense[]      @relation("ExpenseReviewedBy")
   /// Propietario: inmuebles suyos que administra la arrendadora y entregas recibidas.
   ownedBuildings   Building[]     @relation("BuildingOwner")
+  /// Propiedades que ve y en las que captura (solo rol CAPTURE).
+  buildingAccess   BuildingAccess[]
   payoutsReceived  OwnerPayout[]  @relation("PayoutOwner")
   payoutsRecorded  OwnerPayout[]  @relation("PayoutRecordedBy")
 
@@ -212,6 +216,7 @@ model Building {
   units           Unit[]
   serviceAccounts ServiceAccount[]
   payouts         OwnerPayout[]
+  staffAccess     BuildingAccess[]
 
   @@index([organizationId])
   @@index([ownerId])
@@ -662,4 +667,21 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([organizationId, createdAt])
+}
+
+/// Propiedades a las que tiene acceso un usuario de Captura. Todo lo que ese
+/// rol ve o modifica se limita a estas propiedades (ver src/lib/capture.ts).
+model BuildingAccess {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  buildingId     String
+  building       Building     @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, buildingId])
+  @@index([organizationId])
+  @@index([buildingId])
 }

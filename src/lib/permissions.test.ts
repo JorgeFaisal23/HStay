@@ -35,6 +35,18 @@ describe("canAccessPath", () => {
     expect(canAccessPath("VIEWER", "/propietarios")).toBe(false);
   });
 
+  it("Captura solo entra a su vista y nadie más entra a ella", () => {
+    expect(canAccessPath("CAPTURE", "/captura")).toBe(true);
+    expect(canAccessPath("CAPTURE", "/captura/cuenta")).toBe(true);
+    expect(canAccessPath("CAPTURE", "/cambiar-contrasena")).toBe(true);
+    for (const path of ["/hoy", "/dashboard", "/calendario", "/reservas", "/pagos", "/inquilinos", "/edificios/x", "/unidades/x", "/equipo", "/reportes/exportar/cobros", "/portal", "/operacion", "/propietario", "/superadmin", "/capturas"]) {
+      expect(canAccessPath("CAPTURE", path), path).toBe(false);
+    }
+    for (const role of ["OWNER", "ADMIN", "VIEWER", "OPERATIONS", "PROPERTY_OWNER", "TENANT"] as const) {
+      expect(canAccessPath(role, "/captura"), role).toBe(false);
+    }
+  });
+
   it("consulta no ve tareas ni Hoy; el equipo sí", () => {
     expect(canAccessPath("VIEWER", "/tareas")).toBe(false);
     expect(canAccessPath("VIEWER", "/hoy")).toBe(false);
@@ -52,6 +64,7 @@ describe("homePathFor", () => {
     expect(homePathFor("OPERATIONS")).toBe("/operacion");
     expect(homePathFor("TENANT")).toBe("/portal");
     expect(homePathFor("PROPERTY_OWNER")).toBe("/propietario");
+    expect(homePathFor("CAPTURE")).toBe("/captura");
     expect(homePathFor("SUPERADMIN")).toBe("/superadmin");
   });
 });

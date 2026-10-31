@@ -248,6 +248,21 @@ async function seedRentasDelValle(orgId: string, passwordHash: string) {
     },
   });
 
+  // Captura: registra reservas solo de Casa Juárez.
+  const capture = await prisma.user.create({
+    data: {
+      organizationId: orgId,
+      email: "captura@demo.mx",
+      name: "Natalia Ramos",
+      role: "CAPTURE",
+      phone: "55 1000 7000",
+      passwordHash,
+    },
+  });
+  await prisma.buildingAccess.create({
+    data: { organizationId: orgId, userId: capture.id, buildingId: juarez.id },
+  });
+
   const unitsByCode = new Map<string, { id: string; sizeM2: number; baseRent: number }>();
 
   for (const [building, seeds] of [
@@ -777,6 +792,7 @@ async function main() {
   console.log("    consulta@demo.mx     Solo lectura (calendario)");
   console.log("    operacion@demo.mx    Operación (sus tareas)");
   console.log("    propietario@demo.mx  Propietario de Casa Juárez (estado de cuenta)");
+  console.log("    captura@demo.mx      Captura (reservas de Casa Juárez)");
   console.log("    inquilino@demo.mx    Inquilino (portal)");
   console.log("  Casa Norte (slug demo2, gratuito)");
   console.log("    dueno2@demo.mx       Arrendador");

@@ -3,11 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOrgUserAction } from "@/lib/auth/session";
+import { canUseUnit } from "@/lib/capture";
+import type { OrgRole } from "@/lib/auth/jwt";
 import { logAction } from "@/server/actions/audit";
 import { parseDateInput } from "@/server/actions/lease-rules";
 import type { ActionResult } from "@/lib/action-result";
 import type { OrgDb } from "@/lib/db/scoped";
 import { shortDate } from "@/lib/format";
+
+/** Quién registra reservas: el equipo y Captura (este, solo en sus propiedades). */
+const BOOKING_ROLES: OrgRole[] = ["OWNER", "ADMIN", "CAPTURE"];
 
 const dateInput = (message: string) =>
   z.string({ error: message }).regex(/^\d{4}-\d{2}-\d{2}$/, message);
@@ -99,6 +104,7 @@ function readBooking(formData: FormData) {
 function refreshBooking(...unitIds: string[]) {
   revalidatePath("/calendario");
   revalidatePath("/reservas", "layout");
+  revalidatePath("/captura", "layout");
   for (const unitId of new Set(unitIds)) revalidatePath(`/unidades/${unitId}`);
   revalidatePath("/dashboard");
   revalidatePath("/hoy");
@@ -108,7 +114,7 @@ export async function createBooking(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const { session, orgId, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
+  const { session, orgId, db } = await requireOrgUserAction(BOOKING_ROLES);
 
   const parsed = readBooking(formData);
   if (!parsed.success) {
@@ -118,6 +124,9 @@ export async function createBooking(
   const data = parsed.data;
   const checkIn = parseDateInput(data.checkIn);
   const checkOut = parseDateInput(data.checkOut);
+
+  // Captura solo registra en sus propiedades.
+  if (!(await canUseUnit(db, session, data.unitId))) return { error: "No se encontró la unidad." };
 
   // Validar y crear bajo un candado de la unidad: dos capturas simultáneas de
   // las mismas fechas no deben pasar ambas la comprobación.
@@ -166,7 +175,7 @@ export async function createBooking(
  * limpieza pendiente de esa salida se mueve con la reserva.
  */
 export async function updateBooking(bookingId: string, formData: FormData): Promise<ActionResult> {
-  const { session, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
+  const { session, db } = await requireOrgUserAction(BOOKING_ROLES);
 
   const parsed = readBooking(formData);
   if (!parsed.success) {
@@ -180,7 +189,12 @@ export async function updateBooking(bookingId: string, formData: FormData): Prom
     where: { id: bookingId },
     select: { status: true, source: true, unitId: true },
   });
-  if (!current) return { error: "No se encontró la reserva." };
+  // Captura: la reserva y la unidad a la que se mueve deben ser de sus
+  // propiedades; una ajena responde como inexistente.
+  if (!current || !(await canUseUnit(db, session, current.unitId))) {
+    return { error: "No se encontró la reserva." };
+  }
+  if (!(await canUseUnit(db, session, data.unitId))) return { error: "No se encontró la unidad." };
   if (current.source === "AIRBNB") {
     return { error: "Las reservas de Airbnb se corrigen desde Airbnb." };
   }
@@ -243,13 +257,15 @@ export async function updateBooking(bookingId: string, formData: FormData): Prom
 
 /** Cancela una reserva capturada aquí. Las de Airbnb se cancelan en Airbnb. */
 export async function cancelBooking(bookingId: string): Promise<ActionResult> {
-  const { session, db } = await requireOrgUserAction(["OWNER", "ADMIN"]);
+  const { session, db } = await requireOrgUserAction(BOOKING_ROLES);
 
   const booking = await db.booking.findUnique({
     where: { id: bookingId },
     select: { status: true, source: true, unitId: true, guestName: true },
   });
-  if (!booking) return { error: "No se encontró la reserva." };
+  if (!booking || !(await canUseUnit(db, session, booking.unitId))) {
+    return { error: "No se encontró la reserva." };
+  }
   if (booking.source === "AIRBNB") {
     return { error: "Las reservas de Airbnb se cancelan desde Airbnb." };
   }

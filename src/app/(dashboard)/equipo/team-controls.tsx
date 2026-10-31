@@ -1,8 +1,7 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useFormStatus } from "react-dom";
 import { MoreHorizontal, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,22 +28,25 @@ import {
   changeStaffRole,
   inviteStaff,
   resetStaffAccess,
+  setCaptureBuildings,
   setStaffActive,
   type AccessResult,
   type StaffRole,
 } from "@/server/actions/team";
 import { ROLE_LABELS } from "@/lib/labels";
+import { useFormAction } from "@/hooks/use-form-action";
+import { BuildingPicker } from "@/components/team/building-picker";
 
-function Submit() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Guardando…" : "Dar acceso"}
-    </Button>
-  );
-}
+type BuildingOption = { id: string; name: string };
 
-export function InviteStaffDialog({ atLimit = false }: { atLimit?: boolean }) {
+export function InviteStaffDialog({
+  atLimit = false,
+  buildings,
+}: {
+  atLimit?: boolean;
+  /** Para asignar propiedades a un usuario de Captura. */
+  buildings: BuildingOption[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   // Cada vez que se abre, el formulario se monta de nuevo y empieza en blanco.
@@ -74,7 +76,7 @@ export function InviteStaffDialog({ atLimit = false }: { atLimit?: boolean }) {
         }
       />
       <DialogContent className="sm:max-w-lg">
-        <InviteForm key={formKey} onClose={() => {
+        <InviteForm key={formKey} buildings={buildings} onClose={() => {
           setOpen(false);
           router.refresh();
         }} />
@@ -83,8 +85,17 @@ export function InviteStaffDialog({ atLimit = false }: { atLimit?: boolean }) {
   );
 }
 
-function InviteForm({ onClose }: { onClose: () => void }) {
-  const [state, formAction] = useActionState<AccessResult, FormData>(inviteStaff, {});
+function InviteForm({ onClose, buildings }: { onClose: () => void; buildings: BuildingOption[] }) {
+  const [state, setState] = useState<AccessResult>({});
+  const [pending, startTransition] = useTransition();
+  const [role, setRole] = useState<StaffRole>("ADMIN");
+
+  // onSubmit en vez de action: si hay un error, lo capturado no se borra.
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    startTransition(async () => setState(await inviteStaff({}, formData)));
+  }
 
   if (state.ok && state.delivery) {
     return (
@@ -102,7 +113,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <form action={formAction}>
+    <form onSubmit={onSubmit}>
       <DialogHeader>
         <DialogTitle>Agregar usuario al equipo</DialogTitle>
         <DialogDescription>
@@ -118,33 +129,53 @@ function InviteForm({ onClose }: { onClose: () => void }) {
           <Input id="staff-email" name="email" type="email" required placeholder="daniela@ejemplo.com" />
         </Field>
         <Field label="Rol" htmlFor="staff-role">
-          <NativeSelect id="staff-role" name="role" defaultValue="ADMIN">
+          <NativeSelect
+            id="staff-role"
+            name="role"
+            value={role}
+            onChange={(e) => setRole(e.target.value as StaffRole)}
+          >
             <option value="ADMIN">Administrativo: propiedades, servicios, cobros e inquilinos</option>
             <option value="VIEWER">Consulta: solo resumen y calendario</option>
             <option value="OPERATIONS">Operación: solo sus tareas de limpieza y reparación</option>
+            <option value="CAPTURE">Captura: solo reservas de las propiedades que elijas</option>
           </NativeSelect>
         </Field>
+        {role === "CAPTURE" ? <BuildingPicker buildings={buildings} idPrefix="invite" /> : null}
         <FormError message={state.error} />
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Submit />
+        <Button type="submit" disabled={pending}>
+          {pending ? "Guardando…" : "Dar acceso"}
+        </Button>
       </DialogFooter>
     </form>
   );
 }
 
-const STAFF_ROLE_OPTIONS: StaffRole[] = ["ADMIN", "VIEWER", "OPERATIONS"];
+const STAFF_ROLE_OPTIONS: StaffRole[] = ["ADMIN", "VIEWER", "OPERATIONS", "CAPTURE"];
 
 export function StaffRowActions({
   member,
+  buildings,
 }: {
-  member: { id: string; name: string; email: string; role: StaffRole; active: boolean };
+  member: {
+    id: string;
+    name: string;
+    email: string;
+    role: StaffRole;
+    active: boolean;
+    /** Propiedades asignadas (solo Captura). */
+    buildingIds: string[];
+  };
+  buildings: BuildingOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [buildingsOpen, setBuildingsOpen] = useState(false);
 
   const run = (action: () => Promise<{ error?: string }>, success: string) =>
     startTransition(async () => {
@@ -171,6 +202,9 @@ export function StaffRowActions({
           }
         />
         <DropdownMenuContent align="end">
+          {member.role === "CAPTURE" ? (
+            <DropdownMenuItem onClick={() => setBuildingsOpen(true)}>Elegir propiedades</DropdownMenuItem>
+          ) : null}
           {member.active
             ? STAFF_ROLE_OPTIONS.filter((role) => role !== member.role).map((role) => (
                 <DropdownMenuItem
@@ -193,6 +227,73 @@ export function StaffRowActions({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {member.role === "CAPTURE" ? (
+        <CaptureBuildingsDialog
+          open={buildingsOpen}
+          onOpenChange={setBuildingsOpen}
+          member={member}
+          buildings={buildings}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/** Propiedades en las que trabaja alguien de Captura. */
+function CaptureBuildingsDialog({
+  open,
+  onOpenChange,
+  member,
+  buildings,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  member: { id: string; name: string; buildingIds: string[] };
+  buildings: BuildingOption[];
+}) {
+  const router = useRouter();
+  // onSubmit en vez de action: si hay un error, lo marcado no se borra.
+  const { onSubmit, pending, error, clearError } = useFormAction(
+    (formData) => setCaptureBuildings(member.id, formData),
+    {
+      onSuccess: () => {
+        onOpenChange(false);
+        toast.success("Propiedades actualizadas.");
+        router.refresh();
+      },
+    },
+  );
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) clearError();
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={onSubmit}>
+          <DialogHeader>
+            <DialogTitle>Propiedades de {member.name}</DialogTitle>
+            <DialogDescription>
+              Solo verá y registrará reservas de las propiedades que marques.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <BuildingPicker buildings={buildings} defaultSelected={member.buildingIds} idPrefix={`m-${member.id}`} />
+            <FormError message={error} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Guardando…" : "Guardar propiedades"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

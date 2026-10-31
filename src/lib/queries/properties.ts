@@ -305,9 +305,13 @@ export async function getBuildingsForSelect(db: OrgDb) {
 }
 
 /** Unidades que pueden recibir una reserva corta (todas menos las de mantenimiento). */
-export async function getBookableUnits(db: OrgDb) {
+export async function getBookableUnits(db: OrgDb, buildingIds?: string[]) {
   const units = await db.unit.findMany({
-    where: { status: { not: "MAINTENANCE" } },
+    where: {
+      status: { not: "MAINTENANCE" },
+      // Captura: solo sus propiedades.
+      ...(buildingIds ? { buildingId: { in: buildingIds } } : {}),
+    },
     orderBy: [{ building: { name: "asc" } }, { code: "asc" }],
     select: {
       id: true,

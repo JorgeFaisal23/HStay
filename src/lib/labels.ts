@@ -56,6 +56,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   VIEWER: "Consulta",
   OPERATIONS: "Operación",
   PROPERTY_OWNER: "Propietario",
+  CAPTURE: "Captura",
   TENANT: "Inquilino",
 };
 
@@ -66,6 +67,7 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   VIEWER: "Solo puede consultar el calendario",
   OPERATIONS: "Ve y cierra las limpiezas y reparaciones que se le asignan",
   PROPERTY_OWNER: "Ve el estado de cuenta de sus propiedades y lo que se le ha entregado",
+  CAPTURE: "Registra y corrige reservas solo de las propiedades que se le asignan",
   TENANT: "Entra al portal a ver su contrato y sus pagos",
 };
 

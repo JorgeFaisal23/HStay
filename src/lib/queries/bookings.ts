@@ -14,6 +14,8 @@ export type BookingFilters = {
   to?: string;
   /** Sin valor: solo confirmadas. */
   status?: "CANCELLED" | "ALL";
+  /** Solo estas propiedades (rol Captura). Vacío: ninguna. */
+  buildingIds?: string[];
   /** Una sola reserva (al llegar desde el calendario). */
   id?: string;
 };
@@ -31,8 +33,15 @@ export async function getBookings(db: OrgDb, filters: BookingFilters) {
   const q = filters.q?.trim();
   const from = filters.from ?? inputDate(new Date());
 
+  // El límite de propiedades (Captura) se suma a todo lo demás con AND, así
+  // ni la búsqueda por id ni el filtro de propiedad pueden saltárselo.
+  const scope = filters.buildingIds ? { unit: { buildingId: { in: filters.buildingIds } } } : {};
+
   const bookings = await db.booking.findMany({
-    where: filters.id
+    where: {
+      AND: [
+        scope,
+        filters.id
       ? { id: filters.id }
       : {
           ...(filters.status === "ALL"
@@ -53,6 +62,8 @@ export async function getBookings(db: OrgDb, filters: BookingFilters) {
               }
             : {}),
         },
+      ],
+    },
     orderBy: { checkIn: "asc" },
     take: BOOKINGS_LIMIT,
     select: {

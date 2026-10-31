@@ -9,6 +9,21 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/) 
 
 ## [Sin publicar]
 
+## [0.14.0] - 2026-10-31
+
+### Añadido
+- **Rol Captura** (`CAPTURE`): personal que registra reservas solo de las propiedades que se le asignan (una o varias). Ocupa un usuario contratado. Entra únicamente a `/captura`: calendario del mes de sus propiedades, alta, corrección y cancelación de reservas y búsqueda por huésped o unidad. No ve cobros, inquilinos, reportes, equipo ni otras propiedades; los contratos de largo plazo aparecen como "Contrato de largo plazo", sin nombre ni renta del inquilino.
+- **Equipo**: al agregar a alguien de Captura se eligen sus propiedades; después se cambian con "Elegir propiedades". La fila muestra las propiedades asignadas. Al cambiarle el rol se borran sus propiedades y se cierra su sesión.
+- Cuenta demo `captura@demo.mx` (Captura de Casa Juárez).
+- Pruebas: `capture.int.test.ts` (alta, límites de propiedad en reservas, lista y calendario, cambio de rol) y los casos de Captura en `permissions.test.ts`.
+
+### Cambiado
+- El alta de usuarios del equipo ya no borra lo capturado si el servidor regresa un error.
+
+### Seguridad
+- Migración `capture_role`: agrega el valor `CAPTURE` al rol y la tabla `BuildingAccess` (usuario ↔ propiedad, por arrendadora). No toca datos existentes.
+- Las acciones de reservas aceptan Captura solo sobre unidades de sus propiedades (`src/lib/capture.ts`): crear, editar (también la unidad destino) y cancelar. Una reserva o unidad ajena responde como inexistente. Solo el dueño asigna propiedades.
+
 ## [0.13.0] - 2026-10-30
 
 ### Añadido

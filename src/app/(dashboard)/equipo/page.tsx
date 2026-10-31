@@ -26,9 +26,9 @@ export default async function TeamPage() {
   const { session, db } = await requireOrgUser(["OWNER", "ADMIN"]);
   const isOwner = canManageOrganization(session.role);
 
-  const [staff, logs, quota] = await Promise.all([
+  const [staff, logs, quota, buildings] = await Promise.all([
     db.user.findMany({
-      where: { role: { in: ["OWNER", "ADMIN", "VIEWER", "OPERATIONS"] } },
+      where: { role: { in: ["OWNER", "ADMIN", "VIEWER", "OPERATIONS", "CAPTURE"] } },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
       select: {
         id: true,
@@ -37,6 +37,7 @@ export default async function TeamPage() {
         role: true,
         active: true,
         createdAt: true,
+        buildingAccess: { select: { building: { select: { id: true, name: true } } } },
       },
     }),
     db.auditLog.findMany({
@@ -52,6 +53,7 @@ export default async function TeamPage() {
       },
     }),
     userQuota(db),
+    db.building.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
 
 
@@ -62,7 +64,7 @@ export default async function TeamPage() {
         description="Quién tiene acceso al panel y qué puede hacer. Los inquilinos entran por su portal y se administran en Inquilinos."
         action={
           isOwner ? (
-            <InviteStaffDialog atLimit={quota.full} />
+            <InviteStaffDialog atLimit={quota.full} buildings={buildings} />
           ) : null
         }
       />
@@ -99,6 +101,13 @@ export default async function TeamPage() {
                     </p>
                     <p className="text-muted-foreground truncate text-xs">
                       {member.email} · alta el {shortDate(member.createdAt)}
+                      {member.role === "CAPTURE"
+                        ? ` · ${
+                            member.buildingAccess.length === 0
+                              ? "sin propiedades asignadas"
+                              : member.buildingAccess.map((a) => a.building.name).join(", ")
+                          }`
+                        : ""}
                     </p>
                   </div>
                 </div>
@@ -116,7 +125,9 @@ export default async function TeamPage() {
                         email: member.email ?? "",
                         role: member.role as StaffRole,
                         active: member.active,
+                        buildingIds: member.buildingAccess.map((a) => a.building.id),
                       }}
+                      buildings={buildings}
                     />
                   ) : (
                     <span className="text-muted-foreground hidden text-xs sm:inline">

@@ -47,20 +47,41 @@ export async function getCalendarData(
   period: string,
   buildingId?: string,
   search?: string,
+  options: {
+    /** Solo estas propiedades (rol Captura). */
+    buildingIds?: string[];
+    /**
+     * Sin nombre ni renta de los inquilinos de largo plazo: la barra solo dice
+     * que la unidad está ocupada por contrato (rol Captura).
+     */
+    privateLeases?: boolean;
+    /** A dónde lleva el clic en una reserva. */
+    bookingHref?: (bookingId: string) => string;
+  } = {},
 ) {
   const monthStart = periodToDate(period);
   const year = monthStart.getFullYear();
   const month = monthStart.getMonth();
   const totalDays = daysInMonth(year, month);
   const monthEnd = new Date(year, month, totalDays, 23, 59, 59);
+  const bookingHref = options.bookingHref ?? ((id: string) => `/reservas?reserva=${id}`);
+
+  // Límite de propiedades (Captura) y filtro elegido, siempre juntos con AND.
+  const unitWhere = {
+    AND: [
+      options.buildingIds ? { buildingId: { in: options.buildingIds } } : {},
+      buildingId ? { buildingId } : {},
+    ],
+  };
 
   const [buildings, units, leases, bookings] = await Promise.all([
     db.building.findMany({
+      where: options.buildingIds ? { id: { in: options.buildingIds } } : undefined,
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
     db.unit.findMany({
-      where: buildingId ? { buildingId } : undefined,
+      where: unitWhere,
       orderBy: [{ building: { name: "asc" } }, { code: "asc" }],
       select: {
         id: true,
@@ -74,7 +95,7 @@ export async function getCalendarData(
         status: "ACTIVE",
         startDate: { lte: monthEnd },
         endDate: { gte: monthStart },
-        ...(buildingId ? { unit: { buildingId } } : {}),
+        unit: unitWhere,
       },
       select: {
         id: true,
@@ -90,7 +111,7 @@ export async function getCalendarData(
         status: { not: "CANCELLED" },
         checkIn: { lte: monthEnd },
         checkOut: { gte: monthStart },
-        ...(buildingId ? { unit: { buildingId } } : {}),
+        unit: unitWhere,
       },
       select: {
         id: true,
@@ -132,13 +153,15 @@ export async function getCalendarData(
     push(lease.unitId, {
       id: lease.id,
       kind: "LEASE",
-      label: lease.tenant.name,
+      label: options.privateLeases ? "Contrato de largo plazo" : lease.tenant.name,
       startDay,
       endDay,
       continuesBefore: startsBefore,
       continuesAfter: endsAfter,
-      detail: `Contrato de arrendamiento · ${moneyCompact(lease.rentAmount, unitCurrency.get(lease.unitId))} al mes`,
-      href: `/inquilinos/${lease.tenant.id}`,
+      detail: options.privateLeases
+        ? "Ocupada por un contrato de largo plazo"
+        : `Contrato de arrendamiento · ${moneyCompact(lease.rentAmount, unitCurrency.get(lease.unitId))} al mes`,
+      href: options.privateLeases ? "" : `/inquilinos/${lease.tenant.id}`,
     });
   }
 
@@ -155,7 +178,7 @@ export async function getCalendarData(
       label: booking.guestName,
       ...range,
       detail: `${booking.guests} ${booking.guests === 1 ? "huésped" : "huéspedes"} · ${moneyCompact(booking.totalAmount, unitCurrency.get(booking.unitId))}`,
-      href: `/reservas?reserva=${booking.id}`,
+      href: bookingHref(booking.id),
     });
   }
 
@@ -190,7 +213,7 @@ export async function getCalendarData(
       label: b.guestName,
       unitId: b.unitId,
       source: b.source,
-      href: `/reservas?reserva=${b.id}`,
+      href: bookingHref(b.id),
     })),
     ...bookings.map((b) => ({
       id: `out-${b.id}`,
@@ -199,7 +222,7 @@ export async function getCalendarData(
       label: b.guestName,
       unitId: b.unitId,
       source: b.source,
-      href: `/reservas?reserva=${b.id}`,
+      href: bookingHref(b.id),
     })),
   ]
     .filter((e) => e.date >= monthStart && e.date <= monthEnd)
